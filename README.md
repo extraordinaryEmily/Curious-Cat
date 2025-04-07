@@ -16,11 +16,11 @@ This is a test project for Augment AI. It is a simple trivia game where players 
 - authorId and isAnswering issue
 - targetPlayer is suddenly missing value
 - Pages mesh instead of transition
-- Question display formatting with spacing and letter cases
+- Question display formatting with spacing and letter cases(broken again)
+- Resetting values for new round with 'No' and 'Next' options
 
 ## TODO
 - Guessing phase
-- Next rounds
 - Final score phase
 - Full game
 - CSS

@@ -124,14 +124,20 @@ function Player() {
         hasSubmitted,
         question,
         selectedTarget,
+        gameState
       });
 
       setCurrentRound(round);
       setTargetPlayer(targetPlayer);
-      setHasSubmitted(false); // Reset submission status
-      setQuestion(''); // Clear question input
-      setSelectedTarget(''); // Clear selected target
-      setError(null); // Clear any errors
+      setHasSubmitted(false);
+      setQuestion('');
+      setSelectedTarget('');
+      setError(null);
+      setGameState('playing');  // Make sure we set the game state back to 'playing'
+      setShowTransitionScreen(false);  // Reset transition screen
+      setShowPlayerSelection(false);   // Reset player selection
+      setShowGuessPrompt(false);      // Reset guess prompt
+      setGuessedPlayer('');           // Reset guessed player
 
       // Log state after clearing
       console.log('Player State After Clear:', {
@@ -139,6 +145,7 @@ function Player() {
         hasSubmitted: false,
         question: 'empty',
         selectedTarget: 'empty',
+        gameState: 'playing'
       });
     });
 
@@ -529,6 +536,7 @@ function Player() {
 }
 
 export default Player;
+
 
 
 
