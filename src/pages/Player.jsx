@@ -24,6 +24,7 @@ function Player() {
   const [totalVotes, setTotalVotes] = useState(0);
   const [expectedVotes, setExpectedVotes] = useState(0);
   const [isOwnQuestion, setIsOwnQuestion] = useState(false);
+  const [showTransitionScreen, setShowTransitionScreen] = useState(false);
 
   useEffect(() => {
     console.log("[Player] Component mounted");
@@ -116,6 +117,38 @@ function Player() {
       setTotalVotes(votesCount);
     });
 
+    socket.on('new_round', ({ round, targetPlayer }) => {
+      console.log('=== Player New Round Debug ===', {
+        round,
+        targetPlayer,
+        hasSubmitted,
+        question,
+        selectedTarget,
+      });
+
+      setCurrentRound(round);
+      setTargetPlayer(targetPlayer);
+      setHasSubmitted(false); // Reset submission status
+      setQuestion(''); // Clear question input
+      setSelectedTarget(''); // Clear selected target
+      setError(null); // Clear any errors
+
+      // Log state after clearing
+      console.log('Player State After Clear:', {
+        round,
+        hasSubmitted: false,
+        question: 'empty',
+        selectedTarget: 'empty',
+      });
+    });
+
+    socket.on('player_choice', ({ choice }) => {
+      // If this is not the answering player, show transition screen
+      if (!isAnswering) {
+        setShowTransitionScreen(true);
+      }
+    });
+
     return () => {
       console.log("[Player] Component unmounting");
       socket.off('join_error');
@@ -125,8 +158,10 @@ function Player() {
       socket.off('voting_phase');
       socket.off('guessing_phase');
       socket.off('vote_received');
+      socket.off('new_round');
+      socket.off('player_choice');
     };
-  }, [roomCode]);
+  }, [roomCode, isAnswering]);
 
   const handleJoin = (e) => {
     e.preventDefault();
@@ -284,10 +319,18 @@ function Player() {
   };
 
   const handleGuessChoice = (wantsToGuess) => {
+    // First emit the choice to everyone - this will trigger transition screen for others
+    socket.emit('player_choice', { 
+      roomCode, 
+      choice: wantsToGuess ? 'guess' : 'skip' 
+    });
+
     if (wantsToGuess) {
+      // If they want to guess, show player selection
       setShowPlayerSelection(true);
     } else {
-      // Handle case where player doesn't want to guess
+      // If they don't want to guess, show transition and emit skip
+      setShowTransitionScreen(true);
       socket.emit('skip_guess', { roomCode });
     }
   };
@@ -299,18 +342,15 @@ function Player() {
         guessedPlayerId: guessedPlayer 
       });
       setShowPlayerSelection(false);
+      setShowTransitionScreen(true); // Show transition after submitting guess
     }
   };
 
   const renderGuessingPhase = () => {
     if (gameState !== 'guessing') return null;
 
-    console.log('=== Render Guessing Phase Debug ===');
-    console.log('isAnswering:', isAnswering);
-    console.log('targetPlayer:', targetPlayer);
-    console.log('gameState:', gameState);
-    console.log('Render Condition:', !isAnswering);
-    console.log('========================');
+    // If not the answerer and transition screen is showing, return null
+    if (!isAnswering && showTransitionScreen) return null;
 
     return (
       <div className="text-center">
@@ -324,7 +364,10 @@ function Player() {
               <div className="mt-6">
                 <p className="text-xl mb-4">You wrote this question! No guessing!</p>
                 <button 
-                  onClick={() => socket.emit('skip_guess', { roomCode })}
+                  onClick={() => {
+                    socket.emit('skip_guess', { roomCode });
+                    setShowTransitionScreen(true);
+                  }}
                   className="bg-blue-600 px-6 py-2 rounded-lg hover:bg-blue-700 transition"
                 >
                   Next
@@ -382,13 +425,30 @@ function Player() {
             )}
           </div>
         ) : (
-          <div className="bg-gray-800 p-8 rounded-lg max-w-2xl mx-auto">
-            <h2 className="text-2xl mb-4">Question being answered</h2>
-            <p className="text-xl mb-4">
-              {targetPlayer?.name || "Another player"} is answering their question...
-            </p>
-          </div>
+          // Only show this if transition screen is not showing
+          !showTransitionScreen && (
+            <div className="bg-gray-800 p-8 rounded-lg max-w-2xl mx-auto">
+              <h2 className="text-2xl mb-4">Question being answered</h2>
+              <p className="text-xl mb-4">
+                {targetPlayer?.name || "Another player"} is answering their question...
+              </p>
+            </div>
+          )
         )}
+      </div>
+    );
+  };
+
+  const renderTransitionScreen = () => {
+    if (!showTransitionScreen) return null;
+
+    return (
+      <div className="text-center">
+        <h1 className="text-4xl mb-8">Round {currentRound}</h1>
+        <div className="bg-gray-800 p-8 rounded-lg max-w-2xl mx-auto">
+          <h2 className="text-2xl mb-4">Please Look at the Main Screen</h2>
+          <p className="text-gray-400">Waiting for next round to begin...</p>
+        </div>
       </div>
     );
   };
@@ -444,34 +504,31 @@ function Player() {
   }
 
   return (
-    <div className="p-8">
-      {renderQuestionSubmission()}
-      {renderWaitingForOthers()}
-      {renderVoting()}
-      {renderGuessingPhase()}
+    <div className="min-h-screen bg-gray-900 text-white p-8">
+      {!joined ? (
+        <div className="p-8">
+          <h1 className="text-3xl mb-6">Join Game</h1>
+          {/* ... join form JSX ... */}
+        </div>
+      ) : (
+        <>
+          {showTransitionScreen && !showPlayerSelection ? (
+            renderTransitionScreen()
+          ) : (
+            <>
+              {renderQuestionSubmission()}
+              {renderWaitingForOthers()}
+              {renderVoting()}
+              {renderGuessingPhase()}
+            </>
+          )}
+        </>
+      )}
     </div>
   );
 }
 
 export default Player;
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 

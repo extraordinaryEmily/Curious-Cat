@@ -24,3 +24,4 @@ This is a test project for Augment AI. It is a simple trivia game where players 
 - Final score phase
 - Full game
 - CSS
+- Phone vs desktop; reload warning

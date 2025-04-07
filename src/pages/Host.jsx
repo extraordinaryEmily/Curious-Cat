@@ -14,6 +14,7 @@ function Host() {
   const [isCreatingRoom, setIsCreatingRoom] = useState(false); // Add this state
   const [submittedPlayers, setSubmittedPlayers] = useState(new Set());
   const [displayedQuestions, setDisplayedQuestions] = useState([]);
+  const [guessStatus, setGuessStatus] = useState(null);
 
   useEffect(() => {
     console.log("Host component mounted");
@@ -59,10 +60,29 @@ function Host() {
     });
 
     socket.on('new_round', ({ round, targetPlayer }) => {
+      console.log('=== Host New Round Debug ===', {
+        round,
+        targetPlayer,
+        submittedPlayers: Array.from(submittedPlayers),
+        selectedQuestion,
+        displayedQuestions,
+      });
+
       setCurrentRound(round);
       setTargetPlayer(targetPlayer);
       setCurrentPhase('question');
       setSelectedQuestion(null);
+      setSubmittedPlayers(new Set()); // Clear submitted players
+      setDisplayedQuestions([]); // Clear displayed questions
+      setGuessStatus(null); // Clear guess status
+
+      // Log state after clearing
+      console.log('Host State After Clear:', {
+        round,
+        submittedPlayers: 'empty set',
+        selectedQuestion: null,
+        displayedQuestions: [],
+      });
     });
 
     socket.on('game_ended', ({ players, finalScores }) => {
@@ -72,6 +92,23 @@ function Host() {
 
     socket.on('question_submitted', ({ playerName }) => {
       setSubmittedPlayers(prev => new Set([...prev, playerName]));
+    });
+
+    socket.on('player_choice', ({ choice }) => {
+      console.log('Received player choice:', choice); // Debug log
+      setGuessStatus(
+        choice === 'skip' 
+          ? "The answerer has chosen to skip their guess." 
+          : "The answerer has chosen to guess!"
+      );
+    });
+
+    socket.on('guess_result', ({ correct }) => {
+      setGuessStatus(
+        correct 
+          ? "The answerer has found the curious cat!" 
+          : "The answerer failed to find the curious cat!"
+      );
     });
 
     return () => {
@@ -86,8 +123,10 @@ function Host() {
       socket.off('new_round');
       socket.off('game_ended');
       socket.off('question_submitted');
+      socket.off('player_choice');
+      socket.off('guess_result');
     };
-  }, []);
+  }, [submittedPlayers]);
 
   const startGame = () => {
     if (players.length >= 2) {
@@ -232,21 +271,23 @@ function Host() {
       return formattedText.endsWith('?') ? formattedText : `${formattedText}?`;
     };
 
-    // Add debug logging
-    console.log('Target Player:', targetPlayer);
-    console.log('Selected Question:', selectedQuestion);
-
     return (
       <div className="text-center">
         <h1 className="text-4xl mb-8">Round {currentRound}</h1>
         <div className="bg-gray-800 p-8 rounded-lg max-w-2xl mx-auto">
-          <p className="text-lg">
+          <p className="text-lg mb-4">
             {targetPlayer && selectedQuestion && (
               <>
                 {typeof targetPlayer === 'string' ? targetPlayer : targetPlayer.name}, {formatQuestion(selectedQuestion)}
               </>
             )}
           </p>
+          {/* Add status message */}
+          {guessStatus && (
+            <p className="text-xl mt-4 text-yellow-400">
+              {guessStatus}
+            </p>
+          )}
         </div>
       </div>
     );
@@ -315,6 +356,10 @@ function Host() {
 }
 
 export default Host;
+
+
+
+
 
 
 

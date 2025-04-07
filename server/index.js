@@ -238,51 +238,136 @@ io.on("connection", (socket) => {
   });
 
   socket.on("make_guess", ({ roomCode, guessedPlayerId }) => {
+    console.log('=== Make Guess Debug ===');
     const room = rooms.get(roomCode);
-    if (room && room.currentPhase === "guessing" && socket.id === room.targetPlayer.id) {
-      const correct = guessedPlayerId === room.selectedQuestion.authorId;
-      
-      // Update scores
-      if (correct) {
-        room.scores[socket.id] += 2; // Target player gets 2 points for correct guess
-      } else {
-        room.scores[room.selectedQuestion.authorId] += 1; // Question author gets 1 point
+    
+    console.log('Room state:', {
+      exists: !!room,
+      currentPhase: room?.currentPhase,
+      selectedQuestion: room?.selectedQuestion,
+      guessedPlayerId,
+    });
+
+    if (!room) {
+      console.log('Error: Room not found');
+      return;
+    }
+
+    if (room.currentPhase !== 'guessing') {
+      console.log('Error: Wrong phase -', room.currentPhase);
+      return;
+    }
+
+    if (!room.selectedQuestion) {
+      console.log('Error: No selected question');
+      return;
+    }
+
+    // Store necessary data before any modifications
+    const questionData = {
+      authorId: room.selectedQuestion.authorId,
+      text: room.selectedQuestion.text
+    };
+
+    const correct = guessedPlayerId === questionData.authorId;
+    console.log('Guess result:', { correct, guessedPlayerId, authorId: questionData.authorId });
+
+    // Immediately emit the guess result
+    io.to(roomCode).emit("guess_result", { correct });
+
+    // Wait before transitioning to next round
+    setTimeout(() => {
+      // Make sure room still exists after timeout
+      const updatedRoom = rooms.get(roomCode);
+      if (!updatedRoom) {
+        console.log('Error: Room no longer exists after timeout');
+        return;
       }
 
-      // Update player scores in the players array
-      room.players = room.players.map(player => ({
+      // Update scores
+      if (correct) {
+        updatedRoom.scores[socket.id] = (updatedRoom.scores[socket.id] || 0) + 2;
+      } else {
+        updatedRoom.scores[questionData.authorId] = (updatedRoom.scores[questionData.authorId] || 0) + 1;
+      }
+
+      // Update player scores
+      updatedRoom.players = updatedRoom.players.map(player => ({
         ...player,
-        score: room.scores[player.id]
+        score: updatedRoom.scores[player.id] || 0
       }));
 
-      // Check if game should end based on number of rounds
-      if (room.currentRound >= room.numberOfRounds) {
-        room.gameState = "finished";
+      // Check if game should end
+      if (updatedRoom.currentRound >= updatedRoom.numberOfRounds) {
+        updatedRoom.gameState = "finished";
         io.to(roomCode).emit("game_ended", {
-          players: room.players,
-          finalScores: room.scores
+          players: updatedRoom.players,
+          finalScores: updatedRoom.scores
         });
       } else {
         // Start next round
-        room.currentRound++;
-        room.currentPhase = "question";
-        room.questions = [];
-        room.votes = {};
-        room.targetPlayer = room.players[Math.floor(Math.random() * room.players.length)];
-        room.selectedQuestion = null;
-
+        updatedRoom.currentRound++;
+        updatedRoom.currentPhase = "question";
+        
+        // Emit round results before clearing data
         io.to(roomCode).emit("round_results", {
           correct,
-          authorId: room.selectedQuestion.authorId,
-          players: room.players
+          authorId: questionData.authorId,
+          players: updatedRoom.players
         });
 
+        // Clear round data
+        updatedRoom.questions = [];
+        updatedRoom.votes = {};
+        updatedRoom.selectedQuestion = null;
+        updatedRoom.displayedQuestions = [];
+        updatedRoom.targetPlayer = updatedRoom.players[Math.floor(Math.random() * updatedRoom.players.length)];
+
+        // Start new round
         io.to(roomCode).emit("new_round", {
-          round: room.currentRound,
-          targetPlayer: room.targetPlayer
+          round: updatedRoom.currentRound,
+          targetPlayer: updatedRoom.targetPlayer
         });
       }
+    }, 7000);
+  });
+
+  socket.on("skip_guess", ({ roomCode }) => {
+    const room = rooms.get(roomCode);
+    if (room && room.currentPhase === "guessing") {
+      io.to(roomCode).emit("player_choice", { choice: 'skip' });
+
+      setTimeout(() => {
+        // Clear all question-related data
+        room.questions = [];
+        room.votes = {};
+        room.selectedQuestion = null;
+        room.displayedQuestions = [];
+        
+        if (room.currentRound >= room.numberOfRounds) {
+          room.gameState = "finished";
+          io.to(roomCode).emit("game_ended", {
+            players: room.players,
+            finalScores: room.scores
+          });
+        } else {
+          // Start new round
+          room.currentRound++;
+          room.currentPhase = "question";
+          room.targetPlayer = room.players[Math.floor(Math.random() * room.players.length)];
+
+          io.to(roomCode).emit("new_round", {
+            round: room.currentRound,
+            targetPlayer: room.targetPlayer
+          });
+        }
+      }, 6000);
     }
+  });
+
+  socket.on('player_choice', ({ roomCode, choice }) => {
+    console.log('Player choice received:', choice); // Debug log
+    io.to(roomCode).emit('player_choice', { choice });
   });
 
   // Handle disconnections
@@ -314,27 +399,6 @@ const PORT = process.env.PORT || 3000;
 httpServer.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 
