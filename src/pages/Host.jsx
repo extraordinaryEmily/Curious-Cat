@@ -294,27 +294,52 @@ function Host() {
   };
 
   const renderGameOver = () => {
-    if (gameState !== 'finished') return null;
-
     const sortedPlayers = [...players].sort((a, b) => b.score - a.score);
-    
+    const winner = sortedPlayers[0];
+  
     return (
-      <div className="text-center">
-        <h1 className="text-4xl mb-8">Game Over!</h1>
-        <div className="bg-gray-800 p-8 rounded-lg max-w-2xl mx-auto">
-          <h2 className="text-2xl mb-6">Final Scores</h2>
-          <div className="space-y-4">
-            {sortedPlayers.map((player, index) => (
-              <div 
-                key={player.id} 
-                className={`p-4 rounded-lg ${index === 0 ? 'bg-yellow-800' : 'bg-gray-700'}`}
-              >
-                <p className="text-xl">
-                  {index + 1}. {player.name} - {player.score} points
-                </p>
-              </div>
-            ))}
+      <div className="min-h-screen bg-gray-900 flex flex-col items-center justify-center px-4">
+        <div className="text-center max-w-4xl w-full">
+          <h1 className="text-6xl mb-8 text-yellow-500 font-bold">Game Over!</h1>
+        
+          {/* Winner Section */}
+          <div className="mb-12">
+            <div className="bg-yellow-800 p-8 rounded-lg mb-8">
+              <h2 className="text-3xl mb-2">Winner</h2>
+              <p className="text-4xl font-bold text-yellow-400">{winner.name}</p>
+              <p className="text-2xl text-yellow-300">{winner.score} points</p>
+            </div>
           </div>
+
+          {/* All Players Scoreboard */}
+          <div className="bg-gray-800 p-8 rounded-lg">
+            <h2 className="text-3xl mb-6">Final Scoreboard</h2>
+            <div className="space-y-4 max-w-2xl mx-auto">
+              {sortedPlayers.map((player, index) => (
+                <div 
+                  key={player.id} 
+                  className={`p-6 rounded-lg flex items-center justify-between
+                    ${index === 0 ? 'bg-yellow-800/50' : 'bg-gray-700'}
+                    ${index === 1 ? 'bg-gray-600' : ''}
+                    ${index === 2 ? 'bg-gray-500' : ''}`}
+                >
+                  <div className="flex items-center">
+                    <span className="text-2xl font-bold mr-4">#{index + 1}</span>
+                    <span className="text-xl">{player.name}</span>
+                  </div>
+                  <span className="text-xl font-bold">{player.score} points</span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Play Again Button */}
+          <button 
+            onClick={() => window.location.reload()}
+            className="mt-8 bg-green-600 px-8 py-4 rounded-lg text-xl hover:bg-green-700 transition"
+          >
+            Play Again
+          </button>
         </div>
       </div>
     );
@@ -322,40 +347,46 @@ function Host() {
 
   return (
     <div className="p-8">
-      {!roomCode && (
-        <div className="mb-6">
-          <h2 className="text-2xl mb-4">Select Number of Rounds</h2>
-          <div className="flex items-center gap-4">
-            <input 
-              type="range" 
-              min="3" 
-              max="20" 
-              value={numberOfRounds}
-              onChange={(e) => setNumberOfRounds(parseInt(e.target.value))}
-              className="w-full"
-            />
-            <span className="text-xl font-bold min-w-[3rem]">{numberOfRounds}</span>
-          </div>
-          <p className="text-gray-400 mt-2">Each round includes question submission, voting, and guessing phases</p>
-          <button 
-            onClick={handleCreateRoom}
-            className="bg-green-600 px-6 py-3 rounded-lg mt-4 hover:bg-green-700 transition"
-          >
-            Create Room
-          </button>
-        </div>
+      {gameState === 'finished' ? (
+        renderGameOver()
+      ) : (
+        <>
+          {!roomCode && (
+            <div className="mb-6">
+              <h2 className="text-2xl mb-4">Select Number of Rounds</h2>
+              <div className="flex items-center gap-4">
+                <input 
+                  type="range" 
+                  min="3" 
+                  max="20" 
+                  value={numberOfRounds}
+                  onChange={(e) => setNumberOfRounds(parseInt(e.target.value))}
+                  className="w-full"
+                />
+                <span className="text-xl font-bold min-w-[3rem]">{numberOfRounds}</span>
+              </div>
+              <p className="text-gray-400 mt-2">Each round includes question submission, voting, and guessing phases</p>
+              <button 
+                onClick={handleCreateRoom}
+                className="bg-green-600 px-6 py-3 rounded-lg mt-4 hover:bg-green-700 transition"
+              >
+                Create Room
+              </button>
+            </div>
+          )}
+        
+          {renderWaitingRoom()}
+          {renderQuestionPhase()}
+          {renderVotingPhase()}
+          {renderGuessingPhase()}
+        </>
       )}
-      
-      {renderWaitingRoom()}
-      {renderQuestionPhase()}
-      {renderVotingPhase()}
-      {renderGuessingPhase()}
-      {renderGameOver()}
     </div>
   );
 }
 
 export default Host;
+
 
 
 

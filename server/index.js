@@ -201,8 +201,23 @@ io.on("connection", (socket) => {
 
       room.votes[socket.id] = questionId;
 
-      // Notify that a vote was received
-      io.to(roomCode).emit("vote_received", { votesCount: Object.keys(room.votes).length });
+      // Find the author of the voted question and award them a point
+      const votedQuestion = room.questions.find(q => q.id === questionId);
+      if (votedQuestion) {
+        room.scores[votedQuestion.authorId] = (room.scores[votedQuestion.authorId] || 0) + 1;
+        
+        // Update player scores immediately
+        room.players = room.players.map(player => ({
+          ...player,
+          score: room.scores[player.id] || 0
+        }));
+        
+        // Emit updated scores along with vote count
+        io.to(roomCode).emit("vote_received", { 
+          votesCount: Object.keys(room.votes).length,
+          players: room.players 
+        });
+      }
 
       if (Object.keys(room.votes).length === room.players.length) {
         // Count votes and find winning question(s)
@@ -241,32 +256,15 @@ io.on("connection", (socket) => {
     console.log('=== Make Guess Debug ===');
     const room = rooms.get(roomCode);
     
-    console.log('Room state:', {
-      exists: !!room,
-      currentPhase: room?.currentPhase,
-      selectedQuestion: room?.selectedQuestion,
-      guessedPlayerId,
-    });
-
-    if (!room) {
-      console.log('Error: Room not found');
-      return;
-    }
-
-    if (room.currentPhase !== 'guessing') {
-      console.log('Error: Wrong phase -', room.currentPhase);
-      return;
-    }
-
-    if (!room.selectedQuestion) {
-      console.log('Error: No selected question');
-      return;
+    if (!room || room.currentPhase !== 'guessing' || !room.selectedQuestion) {
+        console.log('Error: Invalid game state for guessing');
+        return;
     }
 
     // Store necessary data before any modifications
     const questionData = {
-      authorId: room.selectedQuestion.authorId,
-      text: room.selectedQuestion.text
+        authorId: room.selectedQuestion.authorId,
+        text: room.selectedQuestion.text
     };
 
     const correct = guessedPlayerId === questionData.authorId;
@@ -277,91 +275,99 @@ io.on("connection", (socket) => {
 
     // Wait before transitioning to next round
     setTimeout(() => {
-      // Make sure room still exists after timeout
-      const updatedRoom = rooms.get(roomCode);
-      if (!updatedRoom) {
-        console.log('Error: Room no longer exists after timeout');
-        return;
-      }
+        // Make sure room still exists after timeout
+        const updatedRoom = rooms.get(roomCode);
+        if (!updatedRoom) {
+            console.log('Error: Room no longer exists after timeout');
+            return;
+        }
 
-      // Update scores
-      if (correct) {
-        updatedRoom.scores[socket.id] = (updatedRoom.scores[socket.id] || 0) + 2;
-      } else {
-        updatedRoom.scores[questionData.authorId] = (updatedRoom.scores[questionData.authorId] || 0) + 1;
-      }
+        // Update scores based on guess result
+        if (correct) {
+            // Answerer gets 5 points for correct guess
+            updatedRoom.scores[socket.id] = (updatedRoom.scores[socket.id] || 0) + 5;
+        } else {
+            // Question author gets 2 points if answerer guesses wrong
+            updatedRoom.scores[questionData.authorId] = (updatedRoom.scores[questionData.authorId] || 0) + 2;
+        }
 
-      // Update player scores
-      updatedRoom.players = updatedRoom.players.map(player => ({
-        ...player,
-        score: updatedRoom.scores[player.id] || 0
-      }));
+        // Update player scores
+        updatedRoom.players = updatedRoom.players.map(player => ({
+            ...player,
+            score: updatedRoom.scores[player.id] || 0
+        }));
 
-      // Check if game should end
-      if (updatedRoom.currentRound >= updatedRoom.numberOfRounds) {
-        updatedRoom.gameState = "finished";
-        io.to(roomCode).emit("game_ended", {
-          players: updatedRoom.players,
-          finalScores: updatedRoom.scores
-        });
-      } else {
-        // Start next round
-        updatedRoom.currentRound++;
-        updatedRoom.currentPhase = "question";
-        
-        // Emit round results before clearing data
-        io.to(roomCode).emit("round_results", {
-          correct,
-          authorId: questionData.authorId,
-          players: updatedRoom.players
-        });
+        // Check if game should end
+        if (updatedRoom.currentRound >= updatedRoom.numberOfRounds) {
+            updatedRoom.gameState = "finished";
+            io.to(roomCode).emit("game_ended", {
+                players: updatedRoom.players,
+                finalScores: updatedRoom.scores
+            });
+        } else {
+            // Start next round
+            updatedRoom.currentRound++;
+            updatedRoom.currentPhase = "question";
+            
+            // Emit round results before clearing data
+            io.to(roomCode).emit("round_results", {
+                correct,
+                authorId: questionData.authorId,
+                players: updatedRoom.players
+            });
 
-        // Clear round data
-        updatedRoom.questions = [];
-        updatedRoom.votes = {};
-        updatedRoom.selectedQuestion = null;
-        updatedRoom.displayedQuestions = [];
-        updatedRoom.targetPlayer = updatedRoom.players[Math.floor(Math.random() * updatedRoom.players.length)];
+            // Clear round data
+            updatedRoom.questions = [];
+            updatedRoom.votes = {};
+            updatedRoom.selectedQuestion = null;
+            updatedRoom.displayedQuestions = [];
+            updatedRoom.targetPlayer = updatedRoom.players[Math.floor(Math.random() * updatedRoom.players.length)];
 
-        // Start new round
-        io.to(roomCode).emit("new_round", {
-          round: updatedRoom.currentRound,
-          targetPlayer: updatedRoom.targetPlayer
-        });
-      }
+            // Start new round
+            io.to(roomCode).emit("new_round", {
+                round: updatedRoom.currentRound,
+                targetPlayer: updatedRoom.targetPlayer
+            });
+        }
     }, 7000);
   });
 
   socket.on("skip_guess", ({ roomCode }) => {
     const room = rooms.get(roomCode);
     if (room && room.currentPhase === "guessing") {
+      // No points awarded for skipping
       io.to(roomCode).emit("player_choice", { choice: 'skip' });
-
+      
+      // Wait a bit before starting next round
       setTimeout(() => {
-        // Clear all question-related data
-        room.questions = [];
-        room.votes = {};
-        room.selectedQuestion = null;
-        room.displayedQuestions = [];
-        
-        if (room.currentRound >= room.numberOfRounds) {
-          room.gameState = "finished";
+        const updatedRoom = rooms.get(roomCode);
+        if (!updatedRoom) return;
+
+        if (updatedRoom.currentRound >= updatedRoom.numberOfRounds) {
+          updatedRoom.gameState = "finished";
           io.to(roomCode).emit("game_ended", {
-            players: room.players,
-            finalScores: room.scores
+            players: updatedRoom.players,
+            finalScores: updatedRoom.scores
           });
         } else {
-          // Start new round
-          room.currentRound++;
-          room.currentPhase = "question";
-          room.targetPlayer = room.players[Math.floor(Math.random() * room.players.length)];
+          // Start next round without modifying scores
+          updatedRoom.currentRound++;
+          updatedRoom.currentPhase = "question";
+          
+          // Clear round data
+          updatedRoom.questions = [];
+          updatedRoom.votes = {};
+          updatedRoom.selectedQuestion = null;
+          updatedRoom.displayedQuestions = [];
+          updatedRoom.targetPlayer = updatedRoom.players[Math.floor(Math.random() * updatedRoom.players.length)];
 
+          // Start new round
           io.to(roomCode).emit("new_round", {
-            round: room.currentRound,
-            targetPlayer: room.targetPlayer
+            round: updatedRoom.currentRound,
+            targetPlayer: updatedRoom.targetPlayer
           });
         }
-      }, 6000);
+      }, 7000);
     }
   });
 
