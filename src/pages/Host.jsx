@@ -1,4 +1,7 @@
-import { useEffect, useState } from 'react';
+import { useState, useEffect } from 'react';
+import '../logo-animation.css';
+import '../loading-screen.css';
+import logoImage from '../LOGO.png';
 import { socket } from '../socket';
 
 function Host() {
@@ -15,6 +18,7 @@ function Host() {
   const [submittedPlayers, setSubmittedPlayers] = useState(new Set());
   const [displayedQuestions, setDisplayedQuestions] = useState([]);
   const [guessStatus, setGuessStatus] = useState(null);
+  const [showLoading, setShowLoading] = useState(true);
 
   useEffect(() => {
     console.log("Host component mounted");
@@ -128,10 +132,9 @@ function Host() {
     };
   }, [submittedPlayers]);
 
-  const startGame = () => {
-    if (players.length >= 2) {
-      socket.emit('start_game', { roomCode });
-    }
+  const handleStartGame = () => {
+    console.log('[Host] Emitting start_game event:', roomCode);
+    socket.emit('start_game', { roomCode });
   };
 
   const renderQuestions = () => {
@@ -189,7 +192,7 @@ function Host() {
         </div>
 
         <button
-          onClick={startGame}
+          onClick={handleStartGame}
           disabled={players.length < 2}
           className="bg-green-600 px-6 py-3 rounded-lg disabled:opacity-50"
         >
@@ -298,7 +301,7 @@ function Host() {
     const winner = sortedPlayers[0];
   
     return (
-      <div className="min-h-screen bg-gray-900 flex flex-col items-center justify-center px-4">
+      <div className="min-h-screen flex flex-col items-center justify-center px-4">
         <div className="text-center max-w-4xl w-full">
           <h1 className="text-6xl mb-8 text-yellow-500 font-bold">Game Over!</h1>
         
@@ -345,64 +348,107 @@ function Host() {
     );
   };
 
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setShowLoading(false);
+    }, 10000); // Changed from 3000 to 10000 (10 seconds)
+
+    return () => clearTimeout(timer);
+  }, []);
+
   return (
-    <div className="p-8">
-      {gameState === 'finished' ? (
-        renderGameOver()
+    <div className="min-h-screen w-full">
+      {showLoading ? (
+        <div className="loading-container">
+          <div className="loading-image-container">
+            <img 
+              src={logoImage}
+              alt="Curious Cats Logo" 
+              className="loading-image"
+            />
+          </div>
+        </div>
       ) : (
-        <>
-          {!roomCode && (
-            <div className="mb-6">
-              <h2 className="text-2xl mb-4">Select Number of Rounds</h2>
-              <div className="flex items-center gap-4">
-                <input 
-                  type="range" 
-                  min="3" 
-                  max="20" 
-                  value={numberOfRounds}
-                  onChange={(e) => setNumberOfRounds(parseInt(e.target.value))}
-                  className="w-full"
-                />
-                <span className="text-xl font-bold min-w-[3rem]">{numberOfRounds}</span>
-              </div>
-              <p className="text-gray-400 mt-2">Each round includes question submission, voting, and guessing phases</p>
-              <button 
-                onClick={handleCreateRoom}
-                className="bg-green-600 px-6 py-3 rounded-lg mt-4 hover:bg-green-700 transition"
-              >
-                Create Room
-              </button>
-            </div>
+        <div className="p-4 sm:p-6 md:p-8 lg:p-12">
+          {gameState === 'finished' ? (
+            renderGameOver()
+          ) : (
+            <>
+              {!roomCode && (
+                <div className="max-w-2xl mx-auto rounded-2xl shadow-xl p-6 sm:p-8 md:p-10 bg-gray-800 fade-in">
+                  <h1 className="text-3xl sm:text-4xl md:text-5xl font-bold text-white mb-8 text-center">
+                    Host a New Game
+                  </h1>
+                
+                  <div className="space-y-8">
+                    <div>
+                      <h2 className="text-xl sm:text-2xl font-semibold text-gray-700 mb-4">
+                        Select Number of Rounds
+                      </h2>
+                      <div className="flex items-center gap-4 bg-gray-50 p-4 rounded-xl">
+                        <input 
+                          type="range" 
+                          min="3" 
+                          max="20" 
+                          value={numberOfRounds}
+                          onChange={(e) => setNumberOfRounds(parseInt(e.target.value))}
+                          className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
+                        />
+                        <span className="text-2xl font-bold text-gray-700 min-w-[3rem]">
+                          {numberOfRounds}
+                        </span>
+                      </div>
+                      <p className="text-gray-600 mt-2 text-sm sm:text-base">
+                        Each round includes question submission, voting, and guessing phases
+                      </p>
+                    </div>
+
+                    <div className="flex flex-col items-center space-y-4">
+                      <button 
+                        onClick={handleCreateRoom}
+                        disabled={isCreatingRoom}
+                        className={`
+                          w-full sm:w-auto
+                          px-8 py-4
+                          text-lg sm:text-xl
+                          font-semibold
+                          text-white
+                          rounded-xl
+                          transition-all
+                          transform
+                          hover:scale-105
+                          focus:outline-none
+                          focus:ring-4
+                          focus:ring-opacity-50
+                          ${isCreatingRoom 
+                            ? 'bg-gray-400 cursor-not-allowed' 
+                            : 'bg-green-600 hover:bg-green-700 focus:ring-green-500'
+                          }
+                        `}
+                      >
+                        {isCreatingRoom ? 'Creating Room...' : 'Create Room'}
+                      </button>
+
+                      <div className="text-center mt-4">
+                        <p className="text-sm text-gray-600">
+                          Share the room code with players once created
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+            
+              {renderWaitingRoom()}
+              {renderQuestionPhase()}
+              {renderVotingPhase()}
+              {renderGuessingPhase()}
+            </>
           )}
-        
-          {renderWaitingRoom()}
-          {renderQuestionPhase()}
-          {renderVotingPhase()}
-          {renderGuessingPhase()}
-        </>
+        </div>
       )}
     </div>
   );
 }
 
 export default Host;
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

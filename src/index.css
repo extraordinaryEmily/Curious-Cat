@@ -1,0 +1,30 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  background-color: #D67C6D !important;
+}
+
+html,
+body,
+#root,
+#root > div,
+div {
+  background-color: #D67C6D !important;
+}
+
+* {
+  background-color: #D67C6D !important;
+  margin: 0;
+  padding: 0;
+}
+
+.bg-gray-800,
+.bg-gray-700,
+.bg-gray-900,
+[class*='bg-'] {
+  background-color: #D67C6D !important;
+}
+
+

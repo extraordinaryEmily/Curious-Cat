@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { socket } from '../socket';
+import { socket, storePlayerData, clearPlayerData } from '../socket';
 
 function Player() {
   const [roomCode, setRoomCode] = useState('');
@@ -25,6 +25,7 @@ function Player() {
   const [expectedVotes, setExpectedVotes] = useState(0);
   const [isOwnQuestion, setIsOwnQuestion] = useState(false);
   const [showTransitionScreen, setShowTransitionScreen] = useState(false);
+  const [isReconnecting, setIsReconnecting] = useState(false);
 
   useEffect(() => {
     console.log("[Player] Component mounted");
@@ -104,12 +105,19 @@ function Player() {
       console.log('isAnswering value:', socket.id === targetPlayer?.id);
       console.log('========================');
 
-      // If this player is answering and it's not their own question
+      // If this player is answering
       if (targetPlayer.id === socket.id) {
-        // Show the guess prompt after 20 seconds
         setTimeout(() => {
-          setShowGuessPrompt(true);
-        }, 20000);
+          if (!isOwnQuestion) {
+            // If it's their own question, show the "You wrote this!" message after 10s
+            setShowGuessPrompt(true);
+          } else {
+            // If it's someone else's question, show the guess prompt after 30s
+            setTimeout(() => {
+              setShowGuessPrompt(true);
+            }, 10000);
+          }
+        }, 10000);
       }
     });
 
@@ -156,6 +164,50 @@ function Player() {
       }
     });
 
+    socket.on('reconnect_success', (gameState) => {
+      console.log('[Player] Reconnected successfully', gameState);
+      setJoined(true);
+      setGameState(gameState.gameState);
+      setCurrentRound(gameState.currentRound);
+      setPlayers(gameState.players);
+      // ... update other relevant state ...
+      setIsReconnecting(false);
+    });
+
+    socket.on('reconnect_failed', (error) => {
+      console.log('[Player] Reconnection failed:', error);
+      clearPlayerData();
+      setError(error);
+      setIsReconnecting(false);
+    });
+
+    socket.on('player_disconnected', ({ playerName, players }) => {
+      setPlayers(players);
+      // Show toast or notification that a player disconnected
+    });
+
+    socket.on('player_reconnected', ({ playerName, players }) => {
+      setPlayers(players);
+      // Show toast or notification that a player reconnected
+    });
+
+    socket.on('rejoin_game_in_progress', (gameData) => {
+      console.log('[Player] Rejoining game in progress:', gameData);
+      setGameState(gameData.gameState);
+      setCurrentRound(gameData.currentRound);
+      setPlayers(gameData.players);
+      setTargetPlayer(gameData.targetPlayer);
+      setSelectedQuestion(gameData.selectedQuestion);
+      setDisplayedQuestions(gameData.displayedQuestions || []);
+      
+      // Set appropriate phase-specific states
+      if (gameData.currentPhase === 'question') {
+        setHasSubmitted(false);
+      } else if (gameData.currentPhase === 'voting') {
+        setHasVoted(false);
+      }
+    });
+
     return () => {
       console.log("[Player] Component unmounting");
       socket.off('join_error');
@@ -167,6 +219,11 @@ function Player() {
       socket.off('vote_received');
       socket.off('new_round');
       socket.off('player_choice');
+      socket.off('reconnect_success');
+      socket.off('reconnect_failed');
+      socket.off('player_disconnected');
+      socket.off('player_reconnected');
+      socket.off('rejoin_game_in_progress');
     };
   }, [roomCode, isAnswering]);
 
@@ -180,7 +237,14 @@ function Player() {
       setError('Please enter your name');
       return;
     }
+    if (playerName.length > 15) {
+      setError('Name must be 15 characters or less');
+      return;
+    }
 
+    // Store player data when joining
+    storePlayerData(playerName.trim(), roomCode.toUpperCase());
+    
     socket.emit('join_room', { 
       roomCode: roomCode.toUpperCase(), 
       playerName: playerName.trim() 
@@ -193,12 +257,10 @@ function Player() {
       setError('Please fill in both the question and select a target player');
       return;
     }
-
-    console.log('Submitting question:', {
-      question: question.trim(),
-      targetPlayer: selectedTarget,
-      authorId: socket.id
-    });
+    if (question.length > 150) {  // Changed from 200 to 150
+      setError('Question must be 150 characters or less');
+      return;
+    }
 
     socket.emit('submit_question', {
       roomCode,
@@ -223,14 +285,19 @@ function Player() {
           <form onSubmit={handleSubmitQuestion} className="space-y-6">
             <div>
               <label className="block mb-2">Question:</label>
-              <input
-                type="text"
-                value={question}
-                onChange={(e) => setQuestion(e.target.value)}
-                placeholder="Enter your question..."
-                className="w-full p-3 bg-gray-700 rounded"
-                maxLength={200}
-              />
+              <div className="relative">
+                <input
+                  type="text"
+                  value={question}
+                  onChange={(e) => setQuestion(e.target.value)}
+                  placeholder="Enter your question..."
+                  className="w-full p-3 bg-gray-700 rounded"
+                  maxLength={150}  // Changed from 200 to 150
+                />
+                <span className="absolute right-2 bottom-2 text-sm text-gray-400">
+                  {question.length}/150  {/* Changed from 200 to 150 */}
+                </span>
+              </div>
             </div>
             <div>
               <label className="block mb-2">Ask this question to:</label>
@@ -369,16 +436,22 @@ function Player() {
             
             {isOwnQuestion ? (
               <div className="mt-6">
-                <p className="text-xl mb-4">You wrote this question! No guessing!</p>
-                <button 
-                  onClick={() => {
-                    socket.emit('skip_guess', { roomCode });
-                    setShowTransitionScreen(true);
-                  }}
-                  className="bg-blue-600 px-6 py-2 rounded-lg hover:bg-blue-700 transition"
-                >
-                  Next
-                </button>
+                {!showGuessPrompt ? (
+                  <p className="text-xl mb-4">Reading the question...</p>
+                ) : (
+                  <>
+                    <p className="text-xl mb-4">You wrote this question! No guessing!</p>
+                    <button 
+                      onClick={() => {
+                        socket.emit('skip_guess', { roomCode });
+                        setShowTransitionScreen(true);
+                      }}
+                      className="bg-blue-600 px-6 py-2 rounded-lg hover:bg-blue-700 transition"
+                    >
+                      Next
+                    </button>
+                  </>
+                )}
               </div>
             ) : (
               <>
@@ -477,13 +550,18 @@ function Player() {
           </div>
           <div>
             <label className="block mb-2">Your Name:</label>
-            <input
-              type="text"
-              value={playerName}
-              onChange={(e) => setPlayerName(e.target.value)}
-              className="w-full p-2 bg-gray-800 rounded"
-              maxLength={20}
-            />
+            <div className="relative">
+              <input
+                type="text"
+                value={playerName}
+                onChange={(e) => setPlayerName(e.target.value)}
+                className="w-full p-2 bg-gray-800 rounded"
+                maxLength={15}
+              />
+              <span className="absolute right-2 bottom-2 text-sm text-gray-400">
+                {playerName.length}/15
+              </span>
+            </div>
           </div>
           {error && <p className="text-red-500">{error}</p>}
           <button 
@@ -510,44 +588,41 @@ function Player() {
     );
   }
 
+  // Add a loading state for reconnection
+  if (isReconnecting) {
+    return (
+      <div className="p-8 text-center">
+        <h2 className="text-2xl mb-4">Reconnecting...</h2>
+        <p>Attempting to rejoin the game...</p>
+      </div>
+    );
+  }
+
   return (
-    <div className="min-h-screen bg-gray-900 text-white p-8">
-      {!joined ? (
-        <div className="p-8">
-          <h1 className="text-3xl mb-6">Join Game</h1>
-          {/* ... join form JSX ... */}
-        </div>
-      ) : (
-        <>
-          {showTransitionScreen && !showPlayerSelection ? (
-            renderTransitionScreen()
-          ) : (
-            <>
-              {renderQuestionSubmission()}
-              {renderWaitingForOthers()}
-              {renderVoting()}
-              {renderGuessingPhase()}
-            </>
-          )}
-        </>
-      )}
+    <div className="min-h-screen">
+      <div className="p-4 sm:p-6 md:p-8 lg:p-12">
+        {!joined ? (
+          <div className="p-8">
+            <h1 className="text-3xl mb-6">Join Game</h1>
+            {/* ... join form JSX ... */}
+          </div>
+        ) : (
+          <>
+            {showTransitionScreen && !showPlayerSelection ? (
+              renderTransitionScreen()
+            ) : (
+              <>
+                {renderQuestionSubmission()}
+                {renderWaitingForOthers()}
+                {renderVoting()}
+                {renderGuessingPhase()}
+              </>
+            )}
+          </>
+        )}
+      </div>
     </div>
   );
 }
 
 export default Player;
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

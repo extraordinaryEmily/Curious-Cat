@@ -19,23 +19,18 @@ This is a test project for Augment AI. It is a simple trivia game where players 
 - Question display formatting with spacing and letter cases(broken again)
 - Resetting values for new round with 'No' and 'Next' options
 - Issue with disconnecting server at authorId
+- Scoring was half the points
 
 ## TODO
-- Final score phase
 - CSS
 - Phone vs desktop; reload warning
+- Fix disconnection and reloading to reconnection issue
 
 ## Things to note as Augment warns
-- Disconnection!!!!! Reconnection!!!!!
-- Trying to join a game in progress
-- Multiple players with the same name
-- Max player limit!!!!!
 - Possibly players haven't submitted questions but round proceeds
 - Proper clearing of previous round's data
 - Screen orientation changes
 - Different screen sizes
-- Reloading or browser back!!!!!
-- Very long names or questions!!!!!
 - Special characters in inputs
 - Rapid button clicking
 - Double question submissions

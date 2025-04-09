@@ -9,13 +9,90 @@ const io = new Server(httpServer, {
   cors: {
     origin: "http://localhost:5173", // Vite's default port
     methods: ["GET", "POST"]
+  },
+  // Enable connection state recovery
+  connectionStateRecovery: {
+    maxDisconnectionDuration: 1000 * 60 * 10, // 10 minutes
   }
+});
+
+io.engine.on("connection_error", (err) => {
+  console.log("[Server] Connection error:", err);
 });
 
 const rooms = new Map();
 
+// Add a map to store player data
+const playerData = new Map(); // stores player name and room code
+
+// Add this to store original players for each room
+const originalPlayers = new Map();
+
+const MAX_PLAYERS = 10;
+const MAX_NAME_LENGTH = 15;
+const MAX_QUESTION_LENGTH = 150;  // Changed from 200 to 150
+
 io.on("connection", (socket) => {
   console.log(`[Server] New socket connection: ${socket.id}`);
+
+  socket.on("error", (error) => {
+    console.log("[Server] Socket error:", error);
+  });
+
+  socket.onAny((eventName, ...args) => {
+    console.log(`[Server] Received event '${eventName}':`, args);
+  });
+
+  socket.on("store_player_data", ({ playerName, roomCode }) => {
+    playerData.set(socket.id, { playerName, roomCode });
+  });
+
+  socket.on("attempt_reconnect", ({ playerName, roomCode }) => {
+    console.log(`[Server] Reconnection attempt:`, { playerName, roomCode });
+    
+    const room = rooms.get(roomCode);
+    if (!room) {
+      socket.emit("reconnect_failed", "Room no longer exists");
+      return;
+    }
+
+    // Check if player was in this room
+    const existingPlayer = room.players.find(p => 
+      p.name.toLowerCase() === playerName.toLowerCase()
+    );
+
+    if (!existingPlayer) {
+      socket.emit("reconnect_failed", "Player not found in room");
+      return;
+    }
+
+    // Update the player's new socket ID
+    existingPlayer.id = socket.id;
+    room.scores[socket.id] = room.scores[existingPlayer.id] || 0;
+    
+    // Join the socket to the room
+    socket.join(roomCode);
+    
+    // Store the player data again
+    playerData.set(socket.id, { playerName, roomCode });
+
+    // Send current game state to reconnected player
+    socket.emit("reconnect_success", {
+      gameState: room.gameState,
+      currentRound: room.currentRound,
+      currentPhase: room.currentPhase,
+      players: room.players,
+      scores: room.scores,
+      selectedQuestion: room.selectedQuestion,
+      targetPlayer: room.targetPlayer
+    });
+
+    // Notify other players
+    socket.to(roomCode).emit("player_reconnected", {
+      playerName,
+      players: room.players
+    });
+  });
 
   socket.on("create_room", ({ numberOfRounds }) => {
     console.log(`[Server] Create room request from socket: ${socket.id}`);
@@ -44,74 +121,178 @@ io.on("connection", (socket) => {
   });
 
   socket.on("join_room", ({ roomCode, playerName }) => {
-    console.log(`[Server] Join room attempt:`);
-    console.log(`- Room Code: ${roomCode}`);
-    console.log(`- Player Name: ${playerName}`);
-    console.log(`- Socket ID: ${socket.id}`);
+    console.log('\n[Server] === JOIN ROOM ===');
+    console.log('[Server] Join attempt:', { roomCode, playerName, socketId: socket.id });
     
     if (!roomCode) {
-      console.log('[Server] Join failed: No room code provided');
-      socket.emit("join_error", "Room code is required");
-      return;
+        console.log('2. Error: No room code provided');
+        socket.emit("join_error", "Room code is required");
+        return;
     }
 
     const room = rooms.get(roomCode);
-    console.log(`[Server] Room found:`, room ? 'Yes' : 'No');
-    
     if (!room) {
-      console.log('[Server] Join failed: Room not found');
-      socket.emit("join_error", "Room not found");
-      return;
+        console.log('3. Error: Room not found');
+        socket.emit("join_error", "Room not found");
+        return;
     }
 
+    console.log('[Server] Room state:', room.gameState);
+    
     if (room.gameState !== "waiting") {
-      console.log('[Server] Join failed: Game in progress');
-      socket.emit("join_error", "Game already in progress");
-      return;
+        const origPlayers = originalPlayers.get(roomCode);
+        console.log('[Server] Game in progress, checking original players:', origPlayers);
+
+        const wasOriginalPlayer = origPlayers && origPlayers.some(p => 
+            p.name.toLowerCase() === playerName.toLowerCase()
+        );
+
+        console.log('[Server] Was original player?', wasOriginalPlayer);
+
+        if (!wasOriginalPlayer) {
+            console.log('[Server] Rejecting non-original player');
+            socket.emit("join_error", "Game already in progress");
+            return;
+        }
+
+        // Get original player data
+        const originalPlayer = origPlayers.find(p => 
+            p.name.toLowerCase() === playerName.toLowerCase()
+        );
+
+        // Remove existing player if any
+        room.players = room.players.filter(p => 
+            p.name.toLowerCase() !== playerName.toLowerCase()
+        );
+
+        // Add player back
+        const rejoiningPlayer = {
+            id: socket.id,
+            name: originalPlayer.name,  // Preserve original name casing
+            score: originalPlayer.score || 0
+        };
+        
+        room.players.push(rejoiningPlayer);
+        room.scores[socket.id] = rejoiningPlayer.score;
+        
+        socket.join(roomCode);
+        playerData.set(socket.id, { playerName, roomCode });
+        
+        console.log('[Server] Player rejoined:', rejoiningPlayer);
+        
+        socket.emit("join_success");
+        io.to(roomCode).emit("player_joined", { players: room.players });
+        
+        socket.emit("rejoin_game_in_progress", {
+            gameState: room.gameState,
+            currentRound: room.currentRound,
+            currentPhase: room.currentPhase,
+            players: room.players,
+            targetPlayer: room.targetPlayer,
+            selectedQuestion: room.selectedQuestion,
+            displayedQuestions: room.displayedQuestions || []
+        });
+
+        return;
     }
 
+    // Normal join logic for waiting room...
     try {
-      socket.join(roomCode);
-      const player = {
-        id: socket.id,
-        name: playerName,
-        score: 0
-      };
-      
-      room.players.push(player);
-      room.scores[socket.id] = 0;
-      
-      console.log(`[Server] Player joined successfully:`);
-      console.log(`- Room: ${roomCode}`);
-      console.log(`- Player Name: ${playerName}`);
-      console.log(`- Current players:`, room.players);
-      
-      io.to(roomCode).emit("player_joined", {
-        players: room.players
-      });
-      
-      socket.emit("join_success");
+        socket.join(roomCode);
+        const player = {
+            id: socket.id,
+            name: playerName,
+            score: 0
+        };
+        
+        room.players.push(player);
+        room.scores[socket.id] = 0;
+        
+        console.log('[Server] Player joined successfully:', {
+            room: roomCode,
+            player: player,
+            currentPlayers: room.players
+        });
+        
+        io.to(roomCode).emit("player_joined", {
+            players: room.players
+        });
+        
+        socket.emit("join_success");
     } catch (error) {
-      console.error('[Server] Error joining room:', error);
-      socket.emit("join_error", "Failed to join room");
+        console.error('[Server] Error joining room:', error);
+        socket.emit("join_error", "Failed to join room");
     }
   });
 
   socket.on("start_game", ({ roomCode }) => {
+    console.log('\n[Server] === START GAME EVENT ===');
+    console.log('[Server] Start game request:', { roomCode, socketId: socket.id });
+    
     const room = rooms.get(roomCode);
-    if (room && socket.id === room.host) {
-      room.gameState = "playing";
-      room.currentRound = 1;
-      room.currentPhase = "question";
-      // Remove target player selection here since it will be determined by the chosen question
-      
-      io.to(roomCode).emit("game_started", {
-        round: room.currentRound
-      });
+    if (!room) {
+        console.log('[Server] Room not found:', roomCode);
+        return;
+    }
+    
+    if (socket.id !== room.host) {
+        console.log('[Server] Unauthorized start attempt:', {
+            attemptingSocket: socket.id,
+            hostSocket: room.host
+        });
+        return;
+    }
+
+    try {
+        console.log('[Server] Pre-start game state:', {
+            roomCode,
+            currentPlayers: room.players,
+            gameState: room.gameState
+        });
+
+        // Store original players BEFORE changing game state
+        const origPlayers = JSON.parse(JSON.stringify(room.players));
+        originalPlayers.set(roomCode, origPlayers);
+
+        console.log('[Server] Stored original players:', {
+            roomCode,
+            players: origPlayers
+        });
+
+        // Update game state
+        room.gameState = "playing";
+        room.currentRound = 1;
+        room.currentPhase = "question";
+
+        // Randomly select first target player
+        room.targetPlayer = room.players[Math.floor(Math.random() * room.players.length)];
+
+        console.log('[Server] Post-start game state:', {
+            roomCode,
+            gameState: room.gameState,
+            currentRound: room.currentRound,
+            targetPlayer: room.targetPlayer,
+            originalPlayers: originalPlayers.get(roomCode)
+        });
+
+        io.to(roomCode).emit("game_started", {
+            round: room.currentRound,
+            targetPlayer: room.targetPlayer
+        });
+
+        console.log('[Server] Game start complete');
+    } catch (error) {
+        console.error('[Server] Error in start_game:', error);
     }
   });
 
   socket.on("submit_question", ({ roomCode, question, targetPlayer, authorId }) => {
+    // Add length validation
+    if (question.length > MAX_QUESTION_LENGTH) {
+      socket.emit("question_error", "Question must be 150 characters or less");
+      return;
+    }
+    
     const room = rooms.get(roomCode);
     if (room && room.currentPhase === "question") {
       const playerName = room.players.find(p => p.id === socket.id)?.name;
@@ -378,21 +559,45 @@ io.on("connection", (socket) => {
 
   // Handle disconnections
   socket.on("disconnect", () => {
-    rooms.forEach((room, roomCode) => {
-      if (room.host === socket.id) {
-        io.to(roomCode).emit("game_ended", "Host disconnected");
-        rooms.delete(roomCode);
-        console.log(`Room ${roomCode} deleted - host disconnected`);
-      } else {
-        room.players = room.players.filter(p => p.id !== socket.id);
-        if (room.scores) {
-          delete room.scores[socket.id];
+    const playerInfo = playerData.get(socket.id);
+    if (playerInfo) {
+      const { roomCode } = playerInfo;
+      const room = rooms.get(roomCode);
+      
+      if (room) {
+        if (room.host === socket.id) {
+          io.to(roomCode).emit("game_ended", "Host disconnected");
+          rooms.delete(roomCode);
+          originalPlayers.delete(roomCode); // Clean up original players data
+          console.log(`Room ${roomCode} deleted - host disconnected`);
+        } else {
+          // Mark player as disconnected but don't remove them
+          const player = room.players.find(p => p.id === socket.id);
+          if (player) {
+            player.disconnected = true;
+            io.to(roomCode).emit("player_disconnected", {
+              playerName: player.name,
+              players: room.players
+            });
+          }
         }
-        io.to(roomCode).emit("player_left", {
-          players: room.players
-        });
-        console.log(`Player ${socket.id} left room ${roomCode}`);
       }
+    }
+  });
+
+  // Add a debug endpoint to check room state
+  socket.on("debug_room_state", ({ roomCode }) => {
+    const room = rooms.get(roomCode);
+    const origPlayers = originalPlayers.get(roomCode);
+    
+    console.log('\n[Server] === ROOM STATE DEBUG ===');
+    console.log({
+        roomExists: !!room,
+        gameState: room?.gameState,
+        currentPlayers: room?.players,
+        originalPlayers: origPlayers,
+        currentRound: room?.currentRound,
+        currentPhase: room?.currentPhase
     });
   });
 });
@@ -405,7 +610,3 @@ const PORT = process.env.PORT || 3000;
 httpServer.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });
-
-
-
-
