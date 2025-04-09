@@ -1,0 +1,141 @@
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.rules-container {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.rules-box {
+  width: 40vw;          /* 40% of viewport width */
+  height: 60vh;         /* 50% of viewport height */
+  max-width: 600px;     /* Prevent it from getting too wide on large screens */
+  min-width: 300px;     /* Prevent it from getting too narrow on small screens */
+  border-radius: 2rem;
+  padding: 0 3rem 1rem 3rem;  /* Increased side padding from 1rem to 2rem */
+  box-shadow: 0 20px 25px -5px rgb(0 0 0 / 0.1);
+  display: flex;
+  flex-direction: column;
+  color: white;
+  background-color: rgba(185, 103, 89, 0.7) !important;
+  animation: fadeIn 0.8s ease-out forwards;
+}
+
+/* For mobile screens, allow full width minus margins */
+@media (max-width: 767px) {
+  .rules-box {
+    width: 90vw;        /* Nearly full width on mobile */
+    height: 60vh;       /* Slightly taller on mobile for better readability */
+    padding: 0 1.5rem 1.5rem 1.5rem;  /* Slightly less padding on mobile */
+  }
+}
+
+.rules-title {
+  font-family: 'Heyam', sans-serif;
+  font-size: 4rem;          /* Heading font size */
+  font-weight: 700;
+  margin-bottom: 1rem;
+  text-align: center;
+  letter-spacing: 0.08em;     /* Heading letter spacing */
+}
+
+@media (min-width: 768px) {
+  .rules-title {
+    font-size: 4.5rem;        /* Heading font size on desktop */
+  }
+}
+
+.rules-content {
+  font-family: 'MADE Gentle', sans-serif;
+  font-size: 1.1rem;          /* Text font size */
+  font-weight: 100;           /* Added thinner font weight */
+  line-height: 1.2;           /* Line spacing (multiply by font-size) */
+  flex-grow: 1;
+  overflow-y: auto;
+  padding-right: 1rem;
+  letter-spacing: 0.08em;     /* Text letter spacing */
+}
+
+@media (min-width: 768px) {
+  .rules-content {
+    font-size: 1rem;          /* Text font size on tablets */
+  }
+}
+
+@media (min-width: 1024px) {
+  .rules-content {
+    font-size: 1.125rem;      /* Text font size on desktop */
+  }
+}
+
+.rules-button {
+  font-family: 'Heyam', sans-serif;
+  margin-top: 2rem;
+  padding: 0.75rem 2rem;
+  font-size: 1.25rem;
+  font-weight: 600;
+  background-color: white;
+  color: #B96759;
+  border: none;         /* Remove any border */
+  border-radius: 1.5rem;
+  transition: all 0.2s;
+  margin-left: auto;
+  margin-right: auto;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.rules-button:hover {
+  background-color: rgba(255, 255, 255, 0.9);
+  transform: scale(1.05);
+}
+
+@media (min-width: 768px) {
+  .rules-button {
+    margin-top: 1.5rem;
+  }
+}
+
+/* Custom scrollbar */
+.rules-content::-webkit-scrollbar {
+  width: 0.5rem;
+}
+
+.rules-content::-webkit-scrollbar-track {
+  background-color: #A85749;
+  border-radius: 9999px;
+}
+
+.rules-content::-webkit-scrollbar-thumb {
+  background-color: #98483A;
+  border-radius: 9999px;
+}
+
+/* For numbered list items, add more spacing */
+.rules-content ol {
+  padding-left: 1.5rem;
+}
+
+.rules-content ol li {
+  margin-bottom: 0.75rem; /* Add vertical spacing between list items */
+}
+
+
+
+
+
+
+
+
+

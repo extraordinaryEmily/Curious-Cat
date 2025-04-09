@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import '../logo-animation.css';
 import '../loading-screen.css';
+import '../rules-screen.css';
 import logoImage from '../LOGO.png';
 import { socket } from '../socket';
 
@@ -19,6 +20,17 @@ function Host() {
   const [displayedQuestions, setDisplayedQuestions] = useState([]);
   const [guessStatus, setGuessStatus] = useState(null);
   const [showLoading, setShowLoading] = useState(true);
+  const [showRules, setShowRules] = useState(false);
+  const [showGameSetup, setShowGameSetup] = useState(false);  // New state
+
+  useEffect(() => {
+    const loadingTimer = setTimeout(() => {
+      setShowLoading(false);
+      setShowRules(true);
+    }, 6000); // Show rules after loading animation (adjust timing as needed)
+
+    return () => clearTimeout(loadingTimer);
+  }, []);
 
   useEffect(() => {
     console.log("Host component mounted");
@@ -167,38 +179,81 @@ function Host() {
     socket.emit('create_room', { numberOfRounds });
   };
 
-  console.log('[Host] Current players in render:', players);
+  const handleRulesComplete = () => {
+    setShowRules(false);
+    setShowGameSetup(true);
+  };
 
-  const renderWaitingRoom = () => {
-    if (gameState !== 'waiting') return null;
-    
+  const renderGameSetup = () => {
     return (
-      <>
-        <div className="bg-gray-800 p-6 rounded-lg mb-6">
-          <h2 className="text-2xl mb-2">Room Code:</h2>
-          <p className="text-4xl font-mono font-bold text-green-500">{roomCode}</p>
-        </div>
-
-        <div className="mb-6">
-          <h2 className="text-2xl mb-4">Players ({players.length}):</h2>
-          <div className="grid grid-cols-2 gap-4">
-            {players.map(player => (
-              <div key={player.id} className="bg-gray-800 p-4 rounded-lg">
-                <p>Name: {player.name}</p>
-                <p>Score: {player.score}</p>
+      <div className="p-4 sm:p-6 md:p-8 lg:p-12">
+        <div className="max-w-2xl mx-auto rounded-2xl shadow-xl p-6 sm:p-8 md:p-10 bg-gray-800 fade-in">
+          <h1 className="text-3xl sm:text-4xl md:text-5xl font-bold text-white mb-8 text-center">
+            Host a New Game
+          </h1>
+          
+          <div className="space-y-8">
+            <div>
+              <h2 className="text-xl sm:text-2xl font-semibold mb-4 text-white">
+                Select Number of Rounds
+              </h2>
+              <div className="flex items-center gap-4 p-4 rounded-xl">
+                <input 
+                  type="range" 
+                  min="3" 
+                  max="20" 
+                  value={numberOfRounds}
+                  onChange={(e) => setNumberOfRounds(parseInt(e.target.value))}
+                  className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
+                />
+                <span className="text-2xl font-bold text-white min-w-[3rem]">
+                  {numberOfRounds}
+                </span>
               </div>
-            ))}
+            </div>
+
+            <div className="bg-gray-700 p-6 rounded-lg mb-6">
+              <h2 className="text-2xl mb-2">Room Code:</h2>
+              <p className="text-4xl font-mono font-bold text-green-500">{roomCode}</p>
+            </div>
+
+            <div className="mb-6">
+              <h2 className="text-2xl mb-4">Players ({players.length}):</h2>
+              <div className="grid grid-cols-2 gap-4">
+                {players.map(player => (
+                  <div key={player.id} className="bg-gray-700 p-4 rounded-lg">
+                    <p>Name: {player.name}</p>
+                    <p>Score: {player.score}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <button
+              onClick={handleStartGame}
+              disabled={players.length < 2}
+              className={`
+                w-full
+                px-8 py-4
+                text-xl
+                font-semibold
+                rounded-xl
+                transition-all
+                transform
+                hover:scale-105
+                focus:outline-none
+                focus:ring-4
+                focus:ring-opacity-50
+                ${players.length < 2 
+                  ? 'bg-gray-600 cursor-not-allowed opacity-50' 
+                  : 'bg-green-600 hover:bg-green-700'}
+              `}
+            >
+              {players.length < 2 ? 'Waiting for Players...' : 'Start Game'}
+            </button>
           </div>
         </div>
-
-        <button
-          onClick={handleStartGame}
-          disabled={players.length < 2}
-          className="bg-green-600 px-6 py-3 rounded-lg disabled:opacity-50"
-        >
-          Start Game
-        </button>
-      </>
+      </div>
     );
   };
 
@@ -349,12 +404,10 @@ function Host() {
   };
 
   useEffect(() => {
-    const timer = setTimeout(() => {
-      setShowLoading(false);
-    }, 10000); // Changed from 3000 to 10000 (10 seconds)
-
-    return () => clearTimeout(timer);
-  }, []);
+    if (showGameSetup && !roomCode) {
+      socket.emit('create_room', { numberOfRounds });
+    }
+  }, [showGameSetup]);
 
   return (
     <div className="min-h-screen w-full">
@@ -368,84 +421,37 @@ function Host() {
             />
           </div>
         </div>
-      ) : (
-        <div className="p-4 sm:p-6 md:p-8 lg:p-12">
-          {gameState === 'finished' ? (
-            renderGameOver()
-          ) : (
-            <>
-              {!roomCode && (
-                <div className="max-w-2xl mx-auto rounded-2xl shadow-xl p-6 sm:p-8 md:p-10 bg-gray-800 fade-in">
-                  <h1 className="text-3xl sm:text-4xl md:text-5xl font-bold text-white mb-8 text-center">
-                    Host a New Game
-                  </h1>
-                
-                  <div className="space-y-8">
-                    <div>
-                      <h2 className="text-xl sm:text-2xl font-semibold text-gray-700 mb-4">
-                        Select Number of Rounds
-                      </h2>
-                      <div className="flex items-center gap-4 bg-gray-50 p-4 rounded-xl">
-                        <input 
-                          type="range" 
-                          min="3" 
-                          max="20" 
-                          value={numberOfRounds}
-                          onChange={(e) => setNumberOfRounds(parseInt(e.target.value))}
-                          className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
-                        />
-                        <span className="text-2xl font-bold text-gray-700 min-w-[3rem]">
-                          {numberOfRounds}
-                        </span>
-                      </div>
-                      <p className="text-gray-600 mt-2 text-sm sm:text-base">
-                        Each round includes question submission, voting, and guessing phases
-                      </p>
-                    </div>
-
-                    <div className="flex flex-col items-center space-y-4">
-                      <button 
-                        onClick={handleCreateRoom}
-                        disabled={isCreatingRoom}
-                        className={`
-                          w-full sm:w-auto
-                          px-8 py-4
-                          text-lg sm:text-xl
-                          font-semibold
-                          text-white
-                          rounded-xl
-                          transition-all
-                          transform
-                          hover:scale-105
-                          focus:outline-none
-                          focus:ring-4
-                          focus:ring-opacity-50
-                          ${isCreatingRoom 
-                            ? 'bg-gray-400 cursor-not-allowed' 
-                            : 'bg-green-600 hover:bg-green-700 focus:ring-green-500'
-                          }
-                        `}
-                      >
-                        {isCreatingRoom ? 'Creating Room...' : 'Create Room'}
-                      </button>
-
-                      <div className="text-center mt-4">
-                        <p className="text-sm text-gray-600">
-                          Share the room code with players once created
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              )}
-            
-              {renderWaitingRoom()}
-              {renderQuestionPhase()}
-              {renderVotingPhase()}
-              {renderGuessingPhase()}
-            </>
-          )}
+      ) : showRules ? (
+        <div className="rules-container">
+          <div className="rules-box">
+            <h2 className="rules-title">How to Play</h2>
+            <div className="rules-content">
+              Welcome to Curious Cats! Here's a quick guide to get you started:
+              
+              1. Create a room and share the code with your friends
+              2. Each round, players submit questions about other players
+              3. Everyone votes on their favorite questions
+              4. Selected players must answer truthfully
+              5. Points are awarded for good questions and correct guesses
+              
+              Remember to keep questions fun and appropriate. The goal is to learn interesting things about each other while having a great time!
+            </div>
+            <button 
+              onClick={handleRulesComplete}
+              className="rules-button"
+            >
+              {'>'}Create Room{'<'}
+            </button>
+          </div>
         </div>
+      ) : showGameSetup ? (
+        renderGameSetup()
+      ) : (
+        <>
+          {renderQuestionPhase()}
+          {renderVotingPhase()}
+          {renderGuessingPhase()}
+        </>
       )}
     </div>
   );

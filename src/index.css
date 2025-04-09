@@ -2,29 +2,42 @@
 @tailwind components;
 @tailwind utilities;
 
+@font-face {
+  font-family: 'MADE Gentle';
+  src: url('/fonts/MADEGentle-Thin.woff2') format('woff2');
+  font-weight: 100;
+}
+
+@font-face {
+  font-family: 'MADE Gentle';
+  src: url('/fonts/MADEGentle-Light.woff2') format('woff2');
+  font-weight: 300;
+}
+
 :root {
-  background-color: #D67C6D !important;
+  background-color: #D67C6D;
 }
 
-html,
-body,
-#root,
-#root > div,
-div {
-  background-color: #D67C6D !important;
-}
-
-* {
-  background-color: #D67C6D !important;
+body {
   margin: 0;
-  padding: 0;
+  overflow-x: hidden;
 }
 
+#root {
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+
+/* Remove the universal selector that was causing the override */
 .bg-gray-800,
 .bg-gray-700,
 .bg-gray-900,
 [class*='bg-'] {
-  background-color: #D67C6D !important;
+  background-color: #D67C6D;
 }
+
+
+
+
 
 
