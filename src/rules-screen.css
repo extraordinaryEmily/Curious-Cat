@@ -37,7 +37,7 @@
   .rules-box {
     width: 90vw;        /* Nearly full width on mobile */
     height: 60vh;       /* Slightly taller on mobile for better readability */
-    padding: 0 1.5rem 1.5rem 1.5rem;  /* Slightly less padding on mobile */
+    padding: 0 2rem 1.5rem 2rem;  /* Slightly less padding on mobile */
   }
 }
 
@@ -122,14 +122,53 @@
   border-radius: 9999px;
 }
 
-/* For numbered list items, add more spacing */
+/* For numbered list items, add more spacing and styling */
 .rules-content ol {
-  padding-left: 1.5rem;
+  list-style: none;  /* Remove default numbering */
+  padding-left: 2rem;  /* Space for custom numbers */
+  margin-top: 1.5rem;
+  counter-reset: rules;  /* Custom counter for rules */
 }
 
 .rules-content ol li {
-  margin-bottom: 0.75rem; /* Add vertical spacing between list items */
+  position: relative;
+  margin-bottom: 0.75rem;  /* Reduced spacing between items */
+  line-height: 1.4;  /* Tighter line height */
+  padding-left: 0.5rem;  /* Slight indent for text */
 }
+
+/* Custom numbering without shadow */
+.rules-content ol li::before {
+  content: counter(rules) ".";
+  counter-increment: rules;
+  position: absolute;
+  left: -1.5rem;
+  color: white;  /* Same color as text */
+  font-weight: normal;  /* Remove bold */
+}
+
+/* Remove the divider lines */
+.rules-content ol li:not(:last-child)::after {
+  display: none;
+}
+
+/* Add some space after the list */
+.rules-content ol + p {
+  margin-top: 1.5rem;
+}
+
+/* Add some space before the list */
+.rules-content p + ol {
+  margin-top: 1rem;
+}
+
+/* Style nested lists if any */
+.rules-content ol ol {
+  margin-top: 1rem;
+  margin-left: 1rem;
+}
+
+
 
 
 

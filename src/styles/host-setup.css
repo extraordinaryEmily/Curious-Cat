@@ -1,0 +1,332 @@
+.host-setup-container {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2vw;
+}
+
+.host-setup-box {
+  width: clamp(300px, 40vw, 600px);
+  height: clamp(400px, 50vh, 700px);
+  background-color: #B96759;
+  border-radius: 2rem;
+  padding: clamp(1.5rem, 4vw, 3rem);
+  color: white;
+  display: flex;
+  flex-direction: column;
+}
+
+.host-setup-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr)); /* Prevents overflow */
+  gap: clamp(1rem, 4vw, 2rem);
+  height: 100%;
+  align-items: start;
+}
+
+/* Left column container */
+.players-container {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-width: 0; /* Prevents overflow */
+  overflow: hidden; /* Contains children */
+}
+
+.player-list-title {
+  font-family: 'MADE Gentle', sans-serif;
+  font-size: 2.5rem;
+  color: white;
+  margin-bottom: 1rem;
+  line-height: 1; /* Removes extra space from line height */
+  margin-top: 0; /* Removes any top margin */
+  padding-top: 0; /* Ensures no padding at top */
+  display: block; /* Ensures proper block formatting */
+}
+
+.player-list {
+  background-color: rgba(255, 255, 255, 0.1);
+  border-radius: 1rem;
+  padding: 1rem;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.player-list-content {
+  flex: 1;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  padding-right: 0.5rem;
+}
+
+.player-name {
+  font-family: 'Heyam', sans-serif;
+  font-size: clamp(1rem, 1.5vw, 1.3rem);
+  margin-bottom: min(0.3rem, 0.8vw); /* Reduced from 0.5rem, 1vw */
+  padding: min(0.5rem, 1vw);
+  border-radius: min(0.5rem, 1vw);
+  background-color: rgba(255, 255, 255, 0.1);
+  font-weight: 500;
+  letter-spacing: 0.02em;
+}
+
+.room-code {
+  font-family: 'MADE Gentle', sans-serif;
+  font-size: clamp(2.5rem, 7vw, 5rem);
+  color: white;
+  margin: clamp(0.75rem, 1.5vw, 1.5rem) 0;
+  letter-spacing: 0.05em;
+  font-weight: bold;
+  width: 100%;
+  text-align: center;
+  overflow-wrap: break-word;
+  line-height: 1.2;
+  /* Remove max-height and overflow to prevent cutting */
+  min-height: 1.2em;
+}
+
+/* Hidden element to detect overflow */
+.room-code-overflow {
+  visibility: hidden;
+  position: absolute;
+  font-family: 'MADE Gentle', sans-serif;
+  font-size: clamp(2.5rem, 7vw, 5rem);
+  letter-spacing: 0.05em;
+  width: 100%;
+  white-space: nowrap;
+}
+
+/* When content needs to wrap, reduce font size */
+/*.room-code:has(+ .room-code-overflow) {
+  font-size: clamp(2rem, 5vw, 3.5rem);
+}*/
+
+
+@media (max-width: 1600px) and (min-width: 1401px) {
+  .room-code {
+    font-size: clamp(2.2rem, 5vw, 4rem); /* Slightly smaller for 1400-1600px range */
+  }
+}
+
+@media (max-width: 1400px) {
+  .room-code {
+    font-size: clamp(2rem, 5vw, 3.5rem); /* Existing medium screen size */
+  }
+}
+
+@media (max-width: 768px) {
+  .room-code {
+    font-size: clamp(2rem, 8vw, 3rem); /* Existing mobile size */
+  }
+}
+
+.rounds-title {
+  font-family: 'MADE Gentle', sans-serif;
+  font-size: 1.5rem;
+  margin-bottom: 1.5rem;
+  color: white;
+}
+
+.rounds-display {
+  font-family: 'MADE Gentle', sans-serif;
+  font-size: clamp(1.25rem, 2.5vw, 2rem);
+  color: white;
+  text-align: center;
+  margin-bottom: min(1rem, 2vw);
+}
+
+.rounds-number {
+  color: #ffffff;
+  font-weight: bold;
+}
+
+.start-button {
+  font-family: 'Heyam', sans-serif;
+  background-color: white;
+  color: #B96759;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-size: 1.5rem;
+  padding: 0.8rem 2rem;
+  border-radius: 1.5rem;
+  border: none;
+  margin-top: 2rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  width: fit-content;
+}
+
+.start-button:not(:disabled) {
+  background-color: white;
+  color: #B96759;
+}
+
+.start-button:hover:not(:disabled) {
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+
+.start-button:disabled {
+  background: rgba(255, 255, 255, 0.2);
+  color: rgba(255, 255, 255, 0.6);
+  cursor: not-allowed;
+}
+
+/* Range input styling */
+input[type="range"] {
+  -webkit-appearance: none;
+  width: 100%;
+  height: 6px;
+  background: rgba(255, 255, 255, 0.3);
+  border-radius: 10px;
+  margin: 2rem 0;
+}
+
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  height: 18px;
+  width: 18px;
+  border-radius: 50%;
+  background: white;
+  cursor: pointer;
+  margin-top: -6px;
+}
+
+/* Media Queries */
+@media (max-width: 768px) {
+  .host-setup-box {
+    width: 95vw;
+    height: 80vh;
+    padding: 1.5rem;
+  }
+
+  .host-setup-grid {
+    grid-template-columns: 1fr;  /* Stack on mobile */
+    gap: 1.5rem;
+  }
+
+  .players-container {
+    height: auto;
+  }
+
+  .player-list-title-container {
+    height: auto;
+    margin-bottom: 1rem;
+  }
+
+  .player-list {
+    height: 300px; /* Fixed height for mobile */
+  }
+
+  .room-code {
+    font-size: clamp(2rem, 8vw, 3rem);
+  }
+}
+
+/* For larger screens */
+@media (min-width: 1440px) {
+  .host-setup-box {
+    width: 40vw;
+    height: 50vh;
+  }
+}
+
+/* Custom range input styling */
+input[type="range"] {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 8px;
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 4px;
+  outline: none;
+  margin: 1.5rem 0; /* Increased margin to accommodate larger thumb */
+  position: relative;
+}
+
+/* Thumb styles */
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 20px;
+  height: 20px;
+  background: #E07563;
+  border: 2px solid white;
+  border-radius: 50%;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  margin-top: -6px; /* Centers thumb vertically: -(thumb height - track height)/2 */
+}
+
+input[type="range"]::-moz-range-thumb {
+  width: 20px;
+  height: 20px;
+  background: #E07563;
+  border: 2px solid white;
+  border-radius: 50%;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  transform: translateY(-50%); /* Centers thumb vertically for Firefox */
+}
+
+/* Hover state */
+input[type="range"]::-webkit-slider-thumb:hover {
+  transform: scale(1.1);
+}
+
+input[type="range"]::-moz-range-thumb:hover {
+  transform: scale(1.1);
+}
+
+/* Track styles */
+input[type="range"]::-webkit-slider-runnable-track {
+  width: 100%;
+  height: 8px;
+  cursor: pointer;
+  border-radius: 4px;
+}
+
+input[type="range"]::-moz-range-track {
+  width: 100%;
+  height: 8px;
+  cursor: pointer;
+  border-radius: 4px;
+}
+
+/* Right column container */
+.flex.flex-col.justify-between {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  height: 100%;
+  min-width: 0;
+  overflow: hidden;
+}
+
+/* Container for rounds and other content */
+.rounds-container {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+  gap: 1rem;
+}
+
+/* Media Queries */
+@media (max-width: 768px) {
+  .room-code {
+    font-size: clamp(2rem, 8vw, 3rem);
+  }
+}
+
+/* For larger screens */
+@media (min-width: 1440px) {
+  .host-setup-box {
+    width: 40vw;
+    height: 50vh;
+  }
+}
+

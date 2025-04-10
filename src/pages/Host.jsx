@@ -2,8 +2,9 @@ import { useState, useEffect } from 'react';
 import '../logo-animation.css';
 import '../loading-screen.css';
 import '../rules-screen.css';
+import '../styles/host-setup.css';
 import logoImage from '../LOGO.png';
-import { socket } from '../socket';
+import { socket, connectSocket } from '../socket';
 
 function Host() {
   const [roomCode, setRoomCode] = useState(null);
@@ -168,15 +169,21 @@ function Host() {
     return null;
   };
 
-  const handleCreateRoom = () => {
+  const handleCreateRoom = async () => {
     if (isCreatingRoom || roomCode) {
       console.log('[Host] Room creation already in progress or room exists');
       return;
     }
 
-    console.log('[Host] Attempting to create room with number of rounds:', numberOfRounds);
-    setIsCreatingRoom(true);
-    socket.emit('create_room', { numberOfRounds });
+    try {
+      setIsCreatingRoom(true);
+      await connectSocket(true);
+      localStorage.setItem('numberOfRounds', numberOfRounds);
+      socket.emit('create_room', { numberOfRounds });
+    } catch (error) {
+      console.error('[Host] Failed to create room:', error);
+      setIsCreatingRoom(false);
+    }
   };
 
   const handleRulesComplete = () => {
@@ -186,71 +193,67 @@ function Host() {
 
   const renderGameSetup = () => {
     return (
-      <div className="p-4 sm:p-6 md:p-8 lg:p-12">
-        <div className="max-w-2xl mx-auto rounded-2xl shadow-xl p-6 sm:p-8 md:p-10 bg-gray-800 fade-in">
-          <h1 className="text-3xl sm:text-4xl md:text-5xl font-bold text-white mb-8 text-center">
-            Host a New Game
-          </h1>
-          
-          <div className="space-y-8">
-            <div>
-              <h2 className="text-xl sm:text-2xl font-semibold mb-4 text-white">
-                Select Number of Rounds
-              </h2>
-              <div className="flex items-center gap-4 p-4 rounded-xl">
-                <input 
-                  type="range" 
-                  min="3" 
-                  max="20" 
-                  value={numberOfRounds}
-                  onChange={(e) => setNumberOfRounds(parseInt(e.target.value))}
-                  className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
-                />
-                <span className="text-2xl font-bold text-white min-w-[3rem]">
-                  {numberOfRounds}
-                </span>
+      <div className="host-setup-container">
+        <div className="host-setup-box">
+          <div className="host-setup-grid">
+            {/* Left Column - Players */}
+            <div className="players-container">
+              <h2 className="player-list-title">Players:</h2>
+              <div className="player-list">
+                <div className="player-list-content">
+                  {players.map(player => (
+                    <div key={player.id} className="player-name">
+                      {player.name}
+                    </div>
+                  ))}
+                </div>
               </div>
             </div>
 
-            <div className="bg-gray-700 p-6 rounded-lg mb-6">
-              <h2 className="text-2xl mb-2">Room Code:</h2>
-              <p className="text-4xl font-mono font-bold text-green-500">{roomCode}</p>
-            </div>
+            {/* Right Column - Game Settings */}
+            <div className="flex flex-col justify-between">
+              <div>
+                <div className="room-code">
+                  {roomCode}
+                </div>
+                <div className="room-code-overflow">
+                  {roomCode}
+                </div>
 
-            <div className="mb-6">
-              <h2 className="text-2xl mb-4">Players ({players.length}):</h2>
-              <div className="grid grid-cols-2 gap-4">
-                {players.map(player => (
-                  <div key={player.id} className="bg-gray-700 p-4 rounded-lg">
-                    <p>Name: {player.name}</p>
-                    <p>Score: {player.score}</p>
+                <div className="space-y-4">
+                  <div>
+                    <h2 className="rounds-title">
+                      Number of Rounds: <span className="rounds-number">{numberOfRounds}</span>
+                    </h2>
+                    <input 
+                      type="range" 
+                      min="3" 
+                      max="20" 
+                      value={numberOfRounds}
+                      onChange={(e) => setNumberOfRounds(parseInt(e.target.value))}
+                      className="w-full h-2 bg-white/20 rounded-lg appearance-none cursor-pointer"
+                    />
                   </div>
-                ))}
+
+                  <button
+                    onClick={handleStartGame}
+                    disabled={players.length < 2}
+                    className={`
+                      start-button
+                      w-full px-6 py-3
+                      text-xl font-bold
+                      rounded-xl
+                      transition-all
+                      ${players.length < 2 
+                        ? 'bg-white/20 cursor-not-allowed' 
+                        : 'bg-white text-[#B96759] hover:bg-white/90'}
+                    `}
+                  >
+                    {players.length < 2 ? 'Waiting for Players...' : 'Start Game'}
+                  </button>
+                </div>
               </div>
             </div>
-
-            <button
-              onClick={handleStartGame}
-              disabled={players.length < 2}
-              className={`
-                w-full
-                px-8 py-4
-                text-xl
-                font-semibold
-                rounded-xl
-                transition-all
-                transform
-                hover:scale-105
-                focus:outline-none
-                focus:ring-4
-                focus:ring-opacity-50
-                ${players.length < 2 
-                  ? 'bg-gray-600 cursor-not-allowed opacity-50' 
-                  : 'bg-green-600 hover:bg-green-700'}
-              `}
-            >
-              {players.length < 2 ? 'Waiting for Players...' : 'Start Game'}
-            </button>
           </div>
         </div>
       </div>
@@ -404,8 +407,8 @@ function Host() {
   };
 
   useEffect(() => {
-    if (showGameSetup && !roomCode) {
-      socket.emit('create_room', { numberOfRounds });
+    if (showGameSetup && !roomCode && !isCreatingRoom) {
+      handleCreateRoom();
     }
   }, [showGameSetup]);
 
@@ -426,15 +429,17 @@ function Host() {
           <div className="rules-box">
             <h2 className="rules-title">How to Play</h2>
             <div className="rules-content">
-              Welcome to Curious Cats! Here's a quick guide to get you started:
+              <p>Welcome to Curious Cats! Here's a quick guide to get you started:</p>
               
-              1. Create a room and share the code with your friends
-              2. Each round, players submit questions about other players
-              3. Everyone votes on their favorite questions
-              4. Selected players must answer truthfully
-              5. Points are awarded for good questions and correct guesses
+              <ol>
+                <li>Create a room and share the code with your friends</li>
+                <li>Each round, players submit questions about other players</li>
+                <li>Everyone votes on their favorite questions</li>
+                <li>Selected players must answer truthfully</li>
+                <li>Points are awarded for good questions and correct guesses</li>
+              </ol>
               
-              Remember to keep questions fun and appropriate. The goal is to learn interesting things about each other while having a great time!
+              <p>Remember to keep questions fun and appropriate. The goal is to learn interesting things about each other while having a great time!</p>
             </div>
             <button 
               onClick={handleRulesComplete}

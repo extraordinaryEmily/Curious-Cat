@@ -2,17 +2,7 @@
 @tailwind components;
 @tailwind utilities;
 
-@font-face {
-  font-family: 'MADE Gentle';
-  src: url('/fonts/MADEGentle-Thin.woff2') format('woff2');
-  font-weight: 100;
-}
 
-@font-face {
-  font-family: 'MADE Gentle';
-  src: url('/fonts/MADEGentle-Light.woff2') format('woff2');
-  font-weight: 300;
-}
 
 :root {
   background-color: #D67C6D;

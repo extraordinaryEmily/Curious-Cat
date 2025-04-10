@@ -48,9 +48,15 @@ io.on("connection", (socket) => {
   });
 
   socket.on("attempt_reconnect", ({ playerName, roomCode }) => {
-    console.log(`[Server] Reconnection attempt:`, { playerName, roomCode });
-    
     const room = rooms.get(roomCode);
+    const playerScore = room?.scores[socket.id] || 0;
+    console.log(`[Server] Reconnection attempt:`, { 
+        playerName, 
+        roomCode,
+        score: playerScore,
+        allScores: room?.scores // This will show all scores for debugging
+    });
+    
     if (!room) {
       socket.emit("reconnect_failed", "Room no longer exists");
       return;
@@ -125,99 +131,67 @@ io.on("connection", (socket) => {
     console.log('[Server] Join attempt:', { roomCode, playerName, socketId: socket.id });
     
     if (!roomCode) {
-        console.log('2. Error: No room code provided');
         socket.emit("join_error", "Room code is required");
         return;
     }
 
     const room = rooms.get(roomCode);
     if (!room) {
-        console.log('3. Error: Room not found');
         socket.emit("join_error", "Room not found");
         return;
     }
 
-    console.log('[Server] Room state:', room.gameState);
-    
-    if (room.gameState !== "waiting") {
-        const origPlayers = originalPlayers.get(roomCode);
-        console.log('[Server] Game in progress, checking original players:', origPlayers);
+    // Count active players
+    const activePlayers = room.players.filter(p => !p.disconnected);
+    console.log('[Server] Active players:', activePlayers.length);
 
-        const wasOriginalPlayer = origPlayers && origPlayers.some(p => 
-            p.name.toLowerCase() === playerName.toLowerCase()
-        );
+    // Check for duplicate names (excluding disconnected players)
+    const duplicateName = activePlayers.some(p => 
+        p.name.toLowerCase() === playerName.toLowerCase() && !p.disconnected
+    );
 
-        console.log('[Server] Was original player?', wasOriginalPlayer);
-
-        if (!wasOriginalPlayer) {
-            console.log('[Server] Rejecting non-original player');
-            socket.emit("join_error", "Game already in progress");
-            return;
-        }
-
-        // Get original player data
-        const originalPlayer = origPlayers.find(p => 
-            p.name.toLowerCase() === playerName.toLowerCase()
-        );
-
-        // Remove existing player if any
-        room.players = room.players.filter(p => 
-            p.name.toLowerCase() !== playerName.toLowerCase()
-        );
-
-        // Add player back
-        const rejoiningPlayer = {
-            id: socket.id,
-            name: originalPlayer.name,  // Preserve original name casing
-            score: originalPlayer.score || 0
-        };
-        
-        room.players.push(rejoiningPlayer);
-        room.scores[socket.id] = rejoiningPlayer.score;
-        
-        socket.join(roomCode);
-        playerData.set(socket.id, { playerName, roomCode });
-        
-        console.log('[Server] Player rejoined:', rejoiningPlayer);
-        
-        socket.emit("join_success");
-        io.to(roomCode).emit("player_joined", { players: room.players });
-        
-        socket.emit("rejoin_game_in_progress", {
-            gameState: room.gameState,
-            currentRound: room.currentRound,
-            currentPhase: room.currentPhase,
-            players: room.players,
-            targetPlayer: room.targetPlayer,
-            selectedQuestion: room.selectedQuestion,
-            displayedQuestions: room.displayedQuestions || []
-        });
-
+    if (duplicateName) {
+        socket.emit("join_error", "Name already taken");
         return;
     }
 
-    // Normal join logic for waiting room...
+    // Check for reconnection attempt
+    const disconnectedPlayer = room.players.find(p => 
+        p.name.toLowerCase() === playerName.toLowerCase() && p.disconnected
+    );
+
+    // Enforce player limit
+    if (activePlayers.length >= MAX_PLAYERS && !disconnectedPlayer) {
+        socket.emit("join_error", "Room is full (max 10 players)");
+        return;
+    }
+
+    if (disconnectedPlayer) {
+        // Handle reconnection
+        disconnectedPlayer.id = socket.id;
+        disconnectedPlayer.disconnected = false;
+        socket.join(roomCode);
+        playerData.set(socket.id, { playerName, roomCode });
+        io.to(roomCode).emit("player_joined", { players: room.players });
+        socket.emit("join_success");
+        return;
+    }
+
+    // Handle new player join
     try {
         socket.join(roomCode);
         const player = {
             id: socket.id,
             name: playerName,
-            score: 0
+            score: 0,
+            disconnected: false
         };
         
         room.players.push(player);
         room.scores[socket.id] = 0;
+        playerData.set(socket.id, { playerName, roomCode });
         
-        console.log('[Server] Player joined successfully:', {
-            room: roomCode,
-            player: player,
-            currentPlayers: room.players
-        });
-        
-        io.to(roomCode).emit("player_joined", {
-            players: room.players
-        });
-        
+        io.to(roomCode).emit("player_joined", { players: room.players });
         socket.emit("join_success");
     } catch (error) {
         console.error('[Server] Error joining room:', error);

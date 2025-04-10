@@ -1,5 +1,10 @@
 import { useState, useEffect } from 'react';
-import { socket, storePlayerData, clearPlayerData } from '../socket';
+import { 
+  socket, 
+  connectSocket,  // Add this import
+  storePlayerData, 
+  clearPlayerData 
+} from '../socket';
 
 function Player() {
   const [roomCode, setRoomCode] = useState('');
@@ -26,6 +31,9 @@ function Player() {
   const [isOwnQuestion, setIsOwnQuestion] = useState(false);
   const [showTransitionScreen, setShowTransitionScreen] = useState(false);
   const [isReconnecting, setIsReconnecting] = useState(false);
+  const [hasStoredData, setHasStoredData] = useState(false);
+  const [storedRoom, setStoredRoom] = useState('');
+  const [storedName, setStoredName] = useState('');
 
   useEffect(() => {
     console.log("[Player] Component mounted");
@@ -208,6 +216,22 @@ function Player() {
       }
     });
 
+    socket.on('reconnect_failed', (error) => {
+      console.log('[Player] Reconnection failed:', error);
+      clearPlayerData();
+      setIsReconnecting(false);
+      setJoined(false); // Reset joined state
+      setError('Failed to reconnect. Please join again.');
+    });
+
+    socket.on('join_error', (error) => {
+      console.log('[Player] Join error:', error);
+      clearPlayerData();
+      setIsReconnecting(false);
+      setJoined(false);
+      setError(error);
+    });
+
     return () => {
       console.log("[Player] Component unmounting");
       socket.off('join_error');
@@ -220,14 +244,15 @@ function Player() {
       socket.off('new_round');
       socket.off('player_choice');
       socket.off('reconnect_success');
-      socket.off('reconnect_failed');
       socket.off('player_disconnected');
       socket.off('player_reconnected');
       socket.off('rejoin_game_in_progress');
+      socket.off('reconnect_failed');
+      socket.off('join_error');
     };
   }, [roomCode, isAnswering]);
 
-  const handleJoin = (e) => {
+  const handleJoin = async (e) => {
     e.preventDefault();
     if (!roomCode.trim()) {
       setError('Please enter a room code');
@@ -242,13 +267,16 @@ function Player() {
       return;
     }
 
-    // Store player data when joining
-    storePlayerData(playerName.trim(), roomCode.toUpperCase());
-    
-    socket.emit('join_room', { 
-      roomCode: roomCode.toUpperCase(), 
-      playerName: playerName.trim() 
-    });
+    try {
+      await connectSocket();
+      storePlayerData(playerName.trim(), roomCode.toUpperCase());
+      socket.emit('join_room', { 
+        roomCode: roomCode.toUpperCase(), 
+        playerName: playerName.trim() 
+      });
+    } catch (error) {
+      setError('Failed to connect to server');
+    }
   };
 
   const handleSubmitQuestion = (e) => {
@@ -533,10 +561,65 @@ function Player() {
     );
   };
 
-  if (!joined) {
+  useEffect(() => {
+    // Check for stored data on mount
+    const savedName = localStorage.getItem('playerName');
+    const savedRoom = localStorage.getItem('roomCode');
+    
+    if (savedName && savedRoom) {
+      setHasStoredData(true);
+      setStoredRoom(savedRoom);
+      setStoredName(savedName);
+    }
+  }, []);
+
+  // Render reconnection choice if there's stored data
+  if (hasStoredData && !joined && !isReconnecting) {
     return (
       <div className="p-8">
-        <h1 className="text-3xl mb-6">Join Game</h1>
+        <h2 className="text-2xl mb-4">Previous Session Found</h2>
+        <div className="bg-gray-800 p-4 rounded mb-4">
+          <p>Room Code: <span className="font-mono font-bold">{storedRoom}</span></p>
+          <p>Player Name: <span className="font-bold">{storedName}</span></p>
+        </div>
+        <div className="space-y-4">
+          <button
+            onClick={() => {
+              setIsReconnecting(true);
+              connectSocket();  // Connect socket before attempting reconnection
+              socket.emit('attempt_reconnect', {
+                playerName: storedName,
+                roomCode: storedRoom
+              });
+            }}
+            className="w-full bg-blue-600 px-6 py-2 rounded"
+          >
+            Rejoin Previous Game
+          </button>
+          <button
+            onClick={() => {
+              clearPlayerData();
+              setHasStoredData(false);
+              setStoredRoom('');
+              setStoredName('');
+              setRoomCode('');
+              setPlayerName('');
+            }}
+            className="w-full bg-gray-600 px-6 py-2 rounded"
+          >
+            Join New Game
+          </button>
+        </div>
+        {error && <p className="text-red-500 mt-4">{error}</p>}
+      </div>
+    );
+  }
+
+  // Show join form if no stored data or user chose to join new game
+  if (!joined && !isReconnecting) {
+    return (
+      <div className="p-8">
+        <h2 className="text-2xl mb-4">Join Game</h2>
         <form onSubmit={handleJoin} className="space-y-4">
           <div>
             <label className="block mb-2">Room Code:</label>
@@ -544,29 +627,24 @@ function Player() {
               type="text"
               value={roomCode}
               onChange={(e) => setRoomCode(e.target.value.toUpperCase())}
-              className="w-full p-2 bg-gray-800 rounded"
+              className="w-full p-2 bg-gray-700 rounded"
               maxLength={6}
             />
           </div>
           <div>
             <label className="block mb-2">Your Name:</label>
-            <div className="relative">
-              <input
-                type="text"
-                value={playerName}
-                onChange={(e) => setPlayerName(e.target.value)}
-                className="w-full p-2 bg-gray-800 rounded"
-                maxLength={15}
-              />
-              <span className="absolute right-2 bottom-2 text-sm text-gray-400">
-                {playerName.length}/15
-              </span>
-            </div>
+            <input
+              type="text"
+              value={playerName}
+              onChange={(e) => setPlayerName(e.target.value)}
+              className="w-full p-2 bg-gray-700 rounded"
+              maxLength={15}
+            />
           </div>
           {error && <p className="text-red-500">{error}</p>}
-          <button 
-            type="submit" 
-            className="bg-blue-600 px-6 py-2 rounded"
+          <button
+            type="submit"
+            className="bg-blue-600 px-6 py-2 rounded w-full"
           >
             Join Game
           </button>

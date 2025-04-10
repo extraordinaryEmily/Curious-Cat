@@ -24,7 +24,8 @@ This is a test project for Augment AI. It is a simple trivia game where players 
 ## TODO
 - CSS
 - Phone vs desktop; reload warning
-- Fix disconnection and reloading to reconnection issue
+- Duplicate names
+- Host pages are kinda broken
 
 ## Things to note as Augment warns
 - Possibly players haven't submitted questions but round proceeds
