@@ -6,8 +6,10 @@ const { v4: uuidv4 } = require('uuid');
 const app = express();
 const httpServer = createServer(app);
 const io = new Server(httpServer, {
+  // Allow all origins in development so phones on the local network can connect.
+  // In production, restrict this to your deployed origin.
   cors: {
-    origin: "http://localhost:5173", // Vite's default port
+    origin: "*",
     methods: ["GET", "POST"]
   },
   // Enable connection state recovery
@@ -336,9 +338,10 @@ io.on("connection", (socket) => {
     }
   });
 
-  socket.on("voting_phase", ({ questions }) => {
+  // Client may request a filtered voting payload (exclude their own question)
+  socket.on("voting_phase", ({ roomCode, questions }) => {
     const room = rooms.get(roomCode);
-    if (room) {
+    if (room && Array.isArray(questions)) {
       // Filter out the player's own question before sending
       const filteredQuestions = questions.filter(q => q.authorId !== socket.id);
       socket.emit("voting_phase", { questions: filteredQuestions });
@@ -577,7 +580,13 @@ io.on("connection", (socket) => {
 });
 
 function generateRoomCode() {
-  return Math.random().toString(36).substring(2, 8).toUpperCase();
+  // Generate a 4-letter room code (A-Z) to keep codes short and easy to type on phones
+  const letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+  let code = '';
+  for (let i = 0; i < 4; i++) {
+    code += letters.charAt(Math.floor(Math.random() * letters.length));
+  }
+  return code;
 }
 
 const PORT = process.env.PORT || 3000;

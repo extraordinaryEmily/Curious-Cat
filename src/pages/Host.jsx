@@ -52,11 +52,15 @@ function Host() {
       setPlayers(players);
     });
 
-    socket.on('game_started', ({ round }) => {
+    socket.on('game_started', ({ round, targetPlayer }) => {
+      // When a game starts, leave the setup screen and show the question phase
+      setShowGameSetup(false);
       setGameState('playing');
       setCurrentRound(round);
       setCurrentPhase('question');
-      setTargetPlayer(null); // Clear target player as it will be set later
+      // If server provided a selected target player, set it
+      if (targetPlayer) setTargetPlayer(targetPlayer);
+      else setTargetPlayer(null);
     });
 
     socket.on('voting_phase', ({ questions }) => {
@@ -262,32 +266,34 @@ function Host() {
 
   const renderQuestionPhase = () => {
     if (currentPhase !== 'question') return null;
-
     return (
-      <div className="text-center">
-        <h1 className="text-4xl mb-8">Round {currentRound}</h1>
-        <div className="bg-gray-800 p-8 rounded-lg max-w-2xl mx-auto">
-          <h2 className="text-2xl mb-6">Players Submitting Questions</h2>
-          <div className="grid grid-cols-2 gap-4">
-            {players.map(player => (
-              <div 
-                key={player.id} 
-                className={`p-4 rounded-lg ${
-                  submittedPlayers.has(player.name) 
-                    ? 'bg-green-800' 
-                    : 'bg-gray-700'
-                }`}
-              >
-                <p className="text-lg">{player.name}</p>
-                {submittedPlayers.has(player.name) && (
-                  <span className="text-2xl">✓</span>
-                )}
-              </div>
-            ))}
+      <div className="host-setup-container">
+        <div className="host-setup-box">
+          <h2 className="player-list-title text-center" style={{ fontFamily: 'MADE Gentle, sans-serif' }}>Round {currentRound}</h2>
+          <div className="p-6 rounded-lg mt-4 shadow" style={{ background: '#B96759', fontFamily: 'MADE Gentle, sans-serif' }}>
+            <h3 className="text-2xl mb-4">Players Submitting Questions</h3>
+            <div className="flex flex-col gap-3">
+              {players.map(player => (
+                <div 
+                  key={player.id} 
+                  className={`p-3 rounded-lg flex items-center justify-between ${
+                    submittedPlayers.has(player.name) 
+                      ? 'bg-green-800' 
+                      : 'bg-gray-700'
+                  }`}
+                  style={{ fontFamily: 'MADE Gentle, sans-serif' }}
+                >
+                  <span className="text-lg">{player.name}</span>
+                  {submittedPlayers.has(player.name) && (
+                    <span className="text-2xl ml-2">✓</span>
+                  )}
+                </div>
+              ))}
+            </div>
+            <p className="mt-4 text-lg">
+              {submittedPlayers.size} of {players.length} players have submitted
+            </p>
           </div>
-          <p className="mt-6 text-xl">
-            {submittedPlayers.size} of {players.length} players have submitted
-          </p>
         </div>
       </div>
     );
@@ -304,19 +310,20 @@ function Host() {
     };
 
     return (
-      <div className="text-center">
-        <h1 className="text-4xl mb-8">Round {currentRound}</h1>
-        <div className="bg-gray-800 p-8 rounded-lg">
-          <h2 className="text-2xl mb-6">Vote for Your Favorite Question!</h2>
-          <div className="grid grid-cols-2 gap-6">
-            {displayedQuestions.map((question, index) => (
-              <div key={question.id} className="bg-gray-700 p-6 rounded-lg">
-                <p className="text-xl mb-3">Question {index + 1}</p>
-                <p className="text-lg mb-2">
-                  {question.targetPlayer}, {formatQuestion(question.text)}
-                </p>
-              </div>
-            ))}
+      <div className="host-setup-container">
+        <div className="host-setup-box">
+          <h2 className="player-list-title text-center" style={{ fontFamily: 'MADE Gentle, sans-serif' }}>Round {currentRound}</h2>
+          <div className="p-6 rounded-lg mt-4 shadow" style={{ background: '#B96759', fontFamily: 'MADE Gentle, sans-serif' }}>
+            <h3 className="text-2xl mb-4">Vote for Your Favorite Question!</h3>
+            <div className="flex flex-col gap-4">
+              {displayedQuestions.map((question, index) => (
+                <div key={question.id} className="bg-gray-700 p-4 rounded-lg flex items-center" style={{ fontFamily: 'MADE Gentle, sans-serif' }}>
+                  <p className="text-xl mb-0 font-bold">
+                    Question {index + 1}: <span className="text-lg font-normal">{question.targetPlayer}, {formatQuestion(question.text)}</span>
+                  </p>
+                </div>
+              ))}
+            </div>
           </div>
         </div>
       </div>
@@ -333,22 +340,21 @@ function Host() {
     };
 
     return (
-      <div className="text-center">
-        <h1 className="text-4xl mb-8">Round {currentRound}</h1>
-        <div className="bg-gray-800 p-8 rounded-lg max-w-2xl mx-auto">
-          <p className="text-lg mb-4">
-            {targetPlayer && selectedQuestion && (
-              <>
-                {typeof targetPlayer === 'string' ? targetPlayer : targetPlayer.name}, {formatQuestion(selectedQuestion)}
-              </>
-            )}
-          </p>
-          {/* Add status message */}
-          {guessStatus && (
-            <p className="text-xl mt-4 text-yellow-400">
-              {guessStatus}
+      <div className="host-setup-container">
+        <div className="host-setup-box">
+          <h2 className="player-list-title text-center">Round {currentRound}</h2>
+          <div className="bg-[#B96759] p-6 rounded-lg mt-4 shadow">
+            <p className="text-lg mb-3">
+              {targetPlayer && selectedQuestion && (
+                <>
+                  {typeof targetPlayer === 'string' ? targetPlayer : targetPlayer.name}, {formatQuestion(selectedQuestion)}
+                </>
+              )}
             </p>
-          )}
+            {guessStatus && (
+              <p className="text-xl mt-3 text-yellow-400">{guessStatus}</p>
+            )}
+          </div>
         </div>
       </div>
     );
@@ -429,7 +435,7 @@ function Host() {
           <div className="rules-box">
             <h2 className="rules-title">How to Play</h2>
             <div className="rules-content">
-              <p>Welcome to Curious Cats! Here's a quick guide to get you started:</p>
+              <p>Welcome to Curious Cats! Here are the rules:</p>
               
               <ol>
                 <li>Create a room and share the code with your friends</li>
@@ -439,7 +445,7 @@ function Host() {
                 <li>Points are awarded for good questions and correct guesses</li>
               </ol>
               
-              <p>Remember to keep questions fun and appropriate. The goal is to learn interesting things about each other while having a great time!</p>
+              <p>Stay curious, be kind. The goal is to have fun <i>and</i> learn something new about each other.</p>
             </div>
             <button 
               onClick={handleRulesComplete}

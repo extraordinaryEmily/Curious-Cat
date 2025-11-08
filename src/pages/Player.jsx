@@ -5,6 +5,7 @@ import {
   storePlayerData, 
   clearPlayerData 
 } from '../socket';
+// Custom mobile-friendly styles for Player screens
 
 function Player() {
   const [roomCode, setRoomCode] = useState('');
@@ -306,46 +307,39 @@ function Player() {
     const availablePlayers = players;
 
     return (
-      <div className="text-center">
-        <h1 className="text-4xl mb-8">Round {currentRound}</h1>
-        <div className="bg-gray-800 p-8 rounded-lg max-w-2xl mx-auto">
-          <h2 className="text-2xl mb-6">Submit Your Question</h2>
-          <form onSubmit={handleSubmitQuestion} className="space-y-6">
+      <div className="flex flex-col items-center justify-center min-h-screen px-2 py-6 bg-[#F8F4F0]">
+        <div className="w-full max-w-md mx-auto rounded-2xl shadow-lg bg-[#B96759] p-4">
+          <h2 className="text-2xl font-bold text-white text-center mb-4">Round {currentRound}</h2>
+          <form onSubmit={handleSubmitQuestion} className="space-y-4">
             <div>
-              <label className="block mb-2">Question:</label>
-              <div className="relative">
-                <input
-                  type="text"
-                  value={question}
-                  onChange={(e) => setQuestion(e.target.value)}
-                  placeholder="Enter your question..."
-                  className="w-full p-3 bg-gray-700 rounded"
-                  maxLength={150}  // Changed from 200 to 150
-                />
-                <span className="absolute right-2 bottom-2 text-sm text-gray-400">
-                  {question.length}/150  {/* Changed from 200 to 150 */}
-                </span>
-              </div>
+              <label className="block mb-2 text-white">Question:</label>
+              <input
+                type="text"
+                value={question}
+                onChange={(e) => setQuestion(e.target.value)}
+                placeholder="Enter your question..."
+                className="w-full p-3 rounded-lg bg-white text-[#B96759] text-lg focus:outline-none focus:ring-2 focus:ring-[#B96759]"
+                maxLength={150}
+              />
+              <span className="block text-right text-xs text-white mt-1">{question.length}/150</span>
             </div>
             <div>
-              <label className="block mb-2">Ask this question to:</label>
+              <label className="block mb-2 text-white">Ask this question to:</label>
               <select
                 value={selectedTarget}
                 onChange={(e) => setSelectedTarget(e.target.value)}
-                className="w-full p-3 bg-gray-700 rounded"
+                className="w-full p-3 rounded-lg bg-white text-[#B96759] text-lg focus:outline-none"
               >
                 <option value="">Select a player...</option>
                 {availablePlayers.map(player => (
-                  <option key={player.id} value={player.id}>
-                    {player.name}
-                  </option>
+                  <option key={player.id} value={player.id}>{player.name}</option>
                 ))}
               </select>
             </div>
-            {error && <p className="text-red-500">{error}</p>}
+            {error && <p className="text-red-500 text-center">{error}</p>}
             <button 
               type="submit"
-              className="bg-blue-600 px-6 py-3 rounded-lg w-full hover:bg-blue-700 transition"
+              className="w-full py-3 mt-2 rounded-xl bg-white text-[#B96759] font-bold text-lg shadow hover:bg-[#F8F4F0] transition"
             >
               Submit Question
             </button>
@@ -359,11 +353,13 @@ function Player() {
     if (!hasSubmitted || gameState !== 'playing') return null;
 
     return (
-      <div className="text-center">
-        <h1 className="text-4xl mb-8">Round {currentRound}</h1>
-        <div className="bg-gray-800 p-8 rounded-lg max-w-2xl mx-auto">
-          <h2 className="text-2xl mb-4">Question Submitted!</h2>
-          <p className="text-gray-400">Waiting for other players to submit their questions...</p>
+      <div className="flex flex-col items-center justify-center min-h-screen px-2 py-6 bg-[#F8F4F0]">
+        <div className="w-full max-w-md mx-auto rounded-2xl shadow-lg bg-[#B96759] p-4 text-center">
+          <h2 className="text-2xl font-bold text-white mb-4">Round {currentRound}</h2>
+          <div className="bg-white rounded-xl p-6 mt-2">
+            <h3 className="text-xl font-semibold text-[#B96759] mb-2">Question Submitted!</h3>
+            <p className="text-[#B96759]">Waiting for other players to submit their questions...</p>
+          </div>
         </div>
       </div>
     );
@@ -383,38 +379,38 @@ function Player() {
     };
 
     return (
-      <div className="text-center">
-        <h1 className="text-4xl mb-8">Round {currentRound}</h1>
-        <div className="bg-gray-800 p-8 rounded-lg max-w-2xl mx-auto">
-          {!hasVoted ? (
-            <>
-              <h2 className="text-2xl mb-6">Vote for Your Favorite Question!</h2>
-              {displayedQuestions.length > 0 ? (
-                <div className="space-y-4">
-                  {displayedQuestions.map((question) => (
-                    <button
-                      key={question.id}
-                      onClick={() => handleVote(question.id)}
-                      className="w-full p-4 bg-gray-700 rounded-lg hover:bg-gray-600 transition text-left"
-                    >
-                      <p className="text-lg">
-                        {question.targetPlayer}, {formatQuestion(question.text)}
-                      </p>
-                    </button>
-                  ))}
-                </div>
-              ) : (
-                <p className="text-gray-400">No questions available to vote on</p>
-              )}
-            </>
-          ) : (
-            <div>
-              <h2 className="text-2xl mb-4">Vote Submitted!</h2>
-              <p className="text-gray-400">
-                Waiting for other players to vote... ({totalVotes} of {players.length} votes)
-              </p>
-            </div>
-          )}
+      <div className="flex flex-col items-center justify-center min-h-screen px-2 py-6 bg-[#F8F4F0]">
+        <div className="w-full max-w-md mx-auto rounded-2xl shadow-lg bg-[#B96759] p-4">
+          <h2 className="text-2xl font-bold text-white text-center mb-4">Round {currentRound}</h2>
+          <div className="bg-white rounded-xl p-6 mt-2">
+            {!hasVoted ? (
+              <>
+                <h3 className="text-xl font-semibold text-[#B96759] mb-2">Vote for Your Favorite Question!</h3>
+                {displayedQuestions.length > 0 ? (
+                  <div className="space-y-3">
+                    {displayedQuestions.map((question) => (
+                      <button
+                        key={question.id}
+                        onClick={() => handleVote(question.id)}
+                        className="w-full py-3 px-2 rounded-lg bg-[#B96759] text-white font-bold text-left shadow hover:bg-[#98483A] transition"
+                      >
+                        <span className="block text-lg">{question.targetPlayer}, {formatQuestion(question.text)}</span>
+                      </button>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-[#B96759]">No questions available to vote on</p>
+                )}
+              </>
+            ) : (
+              <div>
+                <h3 className="text-xl font-semibold text-[#B96759] mb-2">Vote Submitted!</h3>
+                <p className="text-[#B96759]">
+                  Waiting for other players to vote... ({totalVotes} of {players.length} votes)
+                </p>
+              </div>
+            )}
+          </div>
         </div>
       </div>
     );
@@ -455,94 +451,91 @@ function Player() {
     if (!isAnswering && showTransitionScreen) return null;
 
     return (
-      <div className="text-center">
-        <h1 className="text-4xl mb-8">Round {currentRound}</h1>
-        {isAnswering ? (
-          <div className="bg-gray-800 p-8 rounded-lg max-w-2xl mx-auto">
-            <h2 className="text-2xl mb-4">Answer your question</h2>
-            <p className="text-xl mb-6">{selectedQuestion}</p>
-            
-            {isOwnQuestion ? (
-              <div className="mt-6">
-                {!showGuessPrompt ? (
-                  <p className="text-xl mb-4">Reading the question...</p>
-                ) : (
-                  <>
-                    <p className="text-xl mb-4">You wrote this question! No guessing!</p>
-                    <button 
-                      onClick={() => {
-                        socket.emit('skip_guess', { roomCode });
-                        setShowTransitionScreen(true);
-                      }}
-                      className="bg-blue-600 px-6 py-2 rounded-lg hover:bg-blue-700 transition"
-                    >
-                      Next
-                    </button>
-                  </>
-                )}
-              </div>
-            ) : (
-              <>
-                {showGuessPrompt && !showPlayerSelection && (
-                  <div className="mt-6">
-                    <p className="text-xl mb-4">Would you like to guess who asked you this question?</p>
-                    <div className="space-x-4">
+      <div className="flex flex-col items-center justify-center min-h-screen px-2 py-6 bg-[#F8F4F0]">
+        <div className="w-full max-w-md mx-auto rounded-2xl shadow-lg bg-[#B96759] p-4">
+          <h2 className="text-2xl font-bold text-white text-center mb-4">Round {currentRound}</h2>
+          {isAnswering ? (
+            <div className="bg-white rounded-xl p-6 mt-2">
+              <h3 className="text-xl font-semibold text-[#B96759] mb-2">Answer your question</h3>
+              <p className="text-[#B96759] text-lg mb-4">{selectedQuestion}</p>
+              {isOwnQuestion ? (
+                <div className="mt-2">
+                  {!showGuessPrompt ? (
+                    <p className="text-[#B96759] text-lg mb-2">Reading the question...</p>
+                  ) : (
+                    <>
+                      <p className="text-[#B96759] text-lg mb-2">You wrote this question! No guessing!</p>
                       <button 
-                        onClick={() => handleGuessChoice(true)}
-                        className="bg-green-600 px-6 py-2 rounded-lg hover:bg-green-700 transition"
+                        onClick={() => {
+                          socket.emit('skip_guess', { roomCode });
+                          setShowTransitionScreen(true);
+                        }}
+                        className="w-full py-3 mt-2 rounded-xl bg-[#B96759] text-white font-bold text-lg shadow hover:bg-[#98483A] transition"
                       >
-                        Yes
+                        Next
                       </button>
-                      <button 
-                        onClick={() => handleGuessChoice(false)}
-                        className="bg-red-600 px-6 py-2 rounded-lg hover:bg-red-700 transition"
+                    </>
+                  )}
+                </div>
+              ) : (
+                <>
+                  {showGuessPrompt && !showPlayerSelection && (
+                    <div className="mt-2">
+                      <p className="text-[#B96759] text-lg mb-2">Would you like to guess who asked you this question?</p>
+                      <div className="flex gap-2">
+                        <button 
+                          onClick={() => handleGuessChoice(true)}
+                          className="w-1/2 py-3 rounded-xl bg-[#B96759] text-white font-bold text-lg shadow hover:bg-[#98483A] transition"
+                        >
+                          Yes
+                        </button>
+                        <button 
+                          onClick={() => handleGuessChoice(false)}
+                          className="w-1/2 py-3 rounded-xl bg-[#B96759] text-white font-bold text-lg shadow hover:bg-[#98483A] transition"
+                        >
+                          No
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                  {showPlayerSelection && (
+                    <div className="mt-2">
+                      <select
+                        value={guessedPlayer}
+                        onChange={(e) => setGuessedPlayer(e.target.value)}
+                        className="w-full p-3 rounded-lg bg-[#B96759] text-white text-lg mb-2"
                       >
-                        No
+                        <option value="">Select who you think asked the question...</option>
+                        {players
+                          .filter(player => player.id !== socket.id)
+                          .map(player => (
+                            <option key={player.id} value={player.id}>
+                              {player.name}
+                            </option>
+                          ))
+                        }
+                      </select>
+                      <button 
+                        onClick={handleGuessSubmit}
+                        disabled={!guessedPlayer}
+                        className="w-full py-3 mt-2 rounded-xl bg-[#B96759] text-white font-bold text-lg shadow hover:bg-[#98483A] transition disabled:opacity-50"
+                      >
+                        Submit Guess
                       </button>
                     </div>
-                  </div>
-                )}
-
-                {showPlayerSelection && (
-                  <div className="mt-6">
-                    <select
-                      value={guessedPlayer}
-                      onChange={(e) => setGuessedPlayer(e.target.value)}
-                      className="w-full p-3 bg-gray-700 rounded mb-4"
-                    >
-                      <option value="">Select who you think asked the question...</option>
-                      {players
-                        .filter(player => player.id !== socket.id)
-                        .map(player => (
-                          <option key={player.id} value={player.id}>
-                            {player.name}
-                          </option>
-                        ))
-                      }
-                    </select>
-                    <button 
-                      onClick={handleGuessSubmit}
-                      disabled={!guessedPlayer}
-                      className="bg-blue-600 px-6 py-2 rounded-lg hover:bg-blue-700 transition disabled:opacity-50"
-                    >
-                      Submit Guess
-                    </button>
-                  </div>
-                )}
-              </>
-            )}
-          </div>
-        ) : (
-          // Only show this if transition screen is not showing
-          !showTransitionScreen && (
-            <div className="bg-gray-800 p-8 rounded-lg max-w-2xl mx-auto">
-              <h2 className="text-2xl mb-4">Question being answered</h2>
-              <p className="text-xl mb-4">
-                {targetPlayer?.name || "Another player"} is answering their question...
-              </p>
+                  )}
+                </>
+              )}
             </div>
-          )
-        )}
+          ) : (
+            !showTransitionScreen && (
+              <div className="bg-white rounded-xl p-6 mt-2 text-center">
+                <h3 className="text-xl font-semibold text-[#B96759] mb-2">Question being answered</h3>
+                <p className="text-[#B96759] text-lg mb-2">{targetPlayer?.name || "Another player"} is answering their question...</p>
+              </div>
+            )
+          )}
+        </div>
       </div>
     );
   };
@@ -551,11 +544,13 @@ function Player() {
     if (!showTransitionScreen) return null;
 
     return (
-      <div className="text-center">
-        <h1 className="text-4xl mb-8">Round {currentRound}</h1>
-        <div className="bg-gray-800 p-8 rounded-lg max-w-2xl mx-auto">
-          <h2 className="text-2xl mb-4">Please Look at the Main Screen</h2>
-          <p className="text-gray-400">Waiting for next round to begin...</p>
+      <div className="flex flex-col items-center justify-center min-h-screen px-2 py-6 bg-[#F8F4F0]">
+        <div className="w-full max-w-md mx-auto rounded-2xl shadow-lg bg-[#B96759] p-4 text-center">
+          <h2 className="text-2xl font-bold text-white mb-4">Round {currentRound}</h2>
+          <div className="bg-white rounded-xl p-6 mt-2">
+            <h3 className="text-xl font-semibold text-[#B96759] mb-2">Please Look at the Main Screen</h3>
+            <p className="text-[#B96759]">Waiting for next round to begin...</p>
+          </div>
         </div>
       </div>
     );
@@ -618,36 +613,72 @@ function Player() {
   // Show join form if no stored data or user chose to join new game
   if (!joined && !isReconnecting) {
     return (
-      <div className="p-8">
-        <h2 className="text-2xl mb-4">Join Game</h2>
-        <form onSubmit={handleJoin} className="space-y-4">
-          <div>
-            <label className="block mb-2">Room Code:</label>
-            <input
-              type="text"
-              value={roomCode}
-              onChange={(e) => setRoomCode(e.target.value.toUpperCase())}
-              className="w-full p-2 bg-gray-700 rounded"
-              maxLength={6}
-            />
-          </div>
-          <div>
-            <label className="block mb-2">Your Name:</label>
+      <div className="min-h-screen flex items-center justify-center">
+        <form onSubmit={handleJoin} className="flex flex-col items-center" style={{ width: '100%' }}>
+          <div className="w-full flex flex-col items-center">
+            <label
+              className="self-start"
+              style={{ fontFamily: 'MADE Gentle, sans-serif', fontSize: 32, marginLeft: '8vw' }}
+            >
+              Name
+            </label>
             <input
               type="text"
               value={playerName}
               onChange={(e) => setPlayerName(e.target.value)}
-              className="w-full p-2 bg-gray-700 rounded"
+              placeholder=""
               maxLength={15}
+              className="mt-2"
+              style={{
+                width: '50vw',
+                background: '#FFFFFF',
+                borderRadius: 15,
+                padding: '12px',
+                boxSizing: 'border-box'
+              }}
             />
+
+            <label
+              className="self-start"
+              style={{ fontFamily: 'MADE Gentle, sans-serif', fontSize: 32, marginLeft: '8vw', marginTop: 20 }}
+            >
+              Code
+            </label>
+            <input
+              type="text"
+              value={roomCode}
+              onChange={(e) => setRoomCode(e.target.value.toUpperCase())}
+              placeholder="Enter the room code"
+              maxLength={4}
+              className="mt-2"
+              style={{
+                width: '50vw',
+                background: '#FFFFFF',
+                borderRadius: 15,
+                padding: '12px',
+                boxSizing: 'border-box',
+                textTransform: 'uppercase'
+              }}
+            />
+
+            {error && <p className="text-red-500 mt-3">{error}</p>}
+
+            <button
+              type="submit"
+              className="mt-6"
+              style={{
+                width: '33.333vw',
+                borderRadius: 20,
+                fontFamily: 'Momentz, sans-serif',
+                fontSize: 20,
+                color: '#B96759',
+                background: 'white',
+                padding: '10px 0'
+              }}
+            >
+              Join
+            </button>
           </div>
-          {error && <p className="text-red-500">{error}</p>}
-          <button
-            type="submit"
-            className="bg-blue-600 px-6 py-2 rounded w-full"
-          >
-            Join Game
-          </button>
         </form>
       </div>
     );

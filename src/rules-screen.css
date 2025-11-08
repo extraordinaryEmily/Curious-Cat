@@ -19,7 +19,7 @@
 
 .rules-box {
   width: 40vw;          /* 40% of viewport width */
-  height: 60vh;         /* 50% of viewport height */
+  height: 65vh;         /* slightly taller for better readability */
   max-width: 600px;     /* Prevent it from getting too wide on large screens */
   min-width: 300px;     /* Prevent it from getting too narrow on small screens */
   border-radius: 2rem;
@@ -36,7 +36,7 @@
 @media (max-width: 767px) {
   .rules-box {
     width: 90vw;        /* Nearly full width on mobile */
-    height: 60vh;       /* Slightly taller on mobile for better readability */
+    height: 65vh;       /* Slightly taller on mobile for better readability */
     padding: 0 2rem 1.5rem 2rem;  /* Slightly less padding on mobile */
   }
 }

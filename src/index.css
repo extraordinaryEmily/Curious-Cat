@@ -18,13 +18,10 @@ body {
   overflow-x: hidden;
 }
 
-/* Remove the universal selector that was causing the override */
-.bg-gray-800,
-.bg-gray-700,
-.bg-gray-900,
-[class*='bg-'] {
-  background-color: #D67C6D;
-}
+/* Note: removed a global override that forced Tailwind bg-* classes to #D67C6D.
+   That rule was causing .bg-gray-800 / .bg-gray-700 / etc to display the wrong color.
+   If you need a global page background, set it on body or #root instead of hijacking
+   Tailwind utility classes. */
 
 
 
