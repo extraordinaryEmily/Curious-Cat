@@ -339,20 +339,56 @@ function Host() {
       return formattedText.endsWith('?') ? formattedText : `${formattedText}?`;
     };
 
+    const addQuotations = (text) => {
+      // Check if text already has quotation marks (straight quotes or curly quotes)
+      const straightQuotes = text.startsWith('"') && text.endsWith('"');
+      const curlyQuotes = text.startsWith('\u201C') && text.endsWith('\u201D');
+      const singleQuotes = text.startsWith('\u2018') && text.endsWith('\u2019');
+      const hasQuotes = straightQuotes || curlyQuotes || singleQuotes;
+      return hasQuotes ? text : `"${text}"`;
+    };
+
     return (
       <div className="host-setup-container">
         <div className="host-setup-box">
           <h2 className="player-list-title text-center">Round {currentRound}</h2>
-          <div className="bg-[#B96759] p-6 rounded-lg mt-4 shadow">
-            <p className="text-lg mb-3">
-              {targetPlayer && selectedQuestion && (
-                <>
-                  {typeof targetPlayer === 'string' ? targetPlayer : targetPlayer.name}, {formatQuestion(selectedQuestion)}
-                </>
-              )}
-            </p>
+          <div className="bg-[#B96759] p-6 rounded-lg mt-4 shadow" style={{ flex: '1', display: 'flex', flexDirection: 'column', minHeight: 0, overflow: 'hidden' }}>
+            {targetPlayer && selectedQuestion && (
+              <div className="text-center" style={{ width: '100%', flex: '1', display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 0, overflow: 'hidden' }}>
+                <p 
+                  className="mb-3"
+                  style={{ 
+                    fontSize: 'clamp(28px, 4vw, 48px)',
+                    fontFamily: 'MADE Gentle, sans-serif',
+                    textAlign: 'center',
+                    color: '#FFFFFF',
+                    lineHeight: '1.2',
+                    wordWrap: 'break-word',
+                    overflowWrap: 'break-word',
+                    maxWidth: '100%',
+                    maxHeight: '100%',
+                    overflow: 'hidden',
+                    display: '-webkit-box',
+                    WebkitLineClamp: 8,
+                    WebkitBoxOrient: 'vertical'
+                  }}
+                >
+                  {addQuotations(`${typeof targetPlayer === 'string' ? targetPlayer : targetPlayer.name}, ${formatQuestion(selectedQuestion)}`)}
+                </p>
+              </div>
+            )}
             {guessStatus && (
-              <p className="text-xl mt-3 text-yellow-400">{guessStatus}</p>
+              <div className="text-center" style={{ width: '100%', marginTop: '16px', flexShrink: 0 }}>
+                <p 
+                  className="text-xl text-yellow-400 text-center"
+                  style={{
+                    margin: 0,
+                    fontFamily: 'MADE Gentle, sans-serif'
+                  }}
+                >
+                  {guessStatus}
+                </p>
+              </div>
             )}
           </div>
         </div>

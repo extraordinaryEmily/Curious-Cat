@@ -51,7 +51,7 @@ function Player() {
       console.log('[Player] Successfully joined room:', roomCode);
       setError('');
       setJoined(true);
-      setJoinStatus('Successfully joined! Waiting for game to start...');
+      setJoinStatus('You\'re in! Waiting for game to start');
     });
 
     socket.on('player_joined', ({ players }) => {
@@ -389,7 +389,7 @@ function Player() {
                   maxWidth: '100%',
                   padding: '10px 10px',
                   borderRadius: '12px',
-                  fontFamily: 'inherit',
+                  fontFamily: 'MADE Gentle, sans-serif',
                   fontSize: '18px',
                   border: 'none',
                   boxShadow: 'none',
@@ -402,7 +402,7 @@ function Player() {
                   overflowWrap: 'break-word'
                 }}
               />
-              <span className="block text-right text-xs mt-1" style={{ color: '#FFFFFF' }}>{question.length}/120</span>
+              <span className="block text-right text-xs mt-1" style={{ color: '#FFFFFF', fontFamily: 'MADE Gentle, sans-serif' }}>{question.length}/120</span>
             </div>
 
             {/* Responder Dropdown */}
@@ -429,7 +429,7 @@ function Player() {
                     padding: '10px 10px',
                     paddingRight: '40px',
                     borderRadius: '12px',
-                    fontFamily: 'inherit',
+                    fontFamily: 'MADE Gentle, sans-serif',
                     fontSize: '18px',
                     border: 'none',
                     boxShadow: 'none',
@@ -453,7 +453,7 @@ function Player() {
 
             {/* Error Message */}
             {error && (
-              <p className="text-white text-center text-sm bg-red-500/50 rounded-full px-4 py-2 mb-4">
+              <p className="text-white text-center text-sm rounded-full px-4 py-2 mb-4" style={{ color: '#FFFFFF' }}>
                 {error}
               </p>
             )}
@@ -488,14 +488,86 @@ function Player() {
   const renderWaitingForOthers = () => {
     if (!hasSubmitted || gameState !== 'playing') return null;
 
+    // Animated ellipses component
+    const AnimatedEllipses = () => {
+      const [dots, setDots] = useState('.');
+
+      useEffect(() => {
+        const interval = setInterval(() => {
+          setDots(prev => {
+            if (prev === '.') return '..';
+            if (prev === '..') return '...';
+            return '.';
+          });
+        }, 500);
+        return () => clearInterval(interval);
+      }, []);
+
+      return <span>{dots}</span>;
+    };
+
     return (
-      <div className="flex flex-col items-center justify-center min-h-screen px-2 py-6 bg-[#F8F4F0]">
-        <div className="w-full max-w-md mx-auto rounded-2xl shadow-lg bg-[#B96759] p-4 text-center">
-          <h2 className="text-2xl font-bold text-white mb-4">Round {currentRound}</h2>
-          <div className="bg-white rounded-xl p-6 mt-2">
-            <h3 className="text-xl font-semibold text-[#B96759] mb-2">Question Submitted!</h3>
-            <p className="text-[#B96759]">Waiting for other players to submit their questions...</p>
-          </div>
+      <div 
+        className="flex justify-center bg-[#D67C6D]"
+        style={{
+          width: '100vw',
+          height: '100vh',
+          maxHeight: '100vh',
+          overflow: 'hidden',
+          padding: '16px',
+          paddingTop: '10vh',
+          boxSizing: 'border-box',
+          alignItems: 'flex-start'
+        }}
+      >
+        <div 
+          className="flex flex-col items-center"
+          style={{
+            width: '85%',
+            justifyContent: 'flex-start',
+            boxSizing: 'border-box'
+          }}
+        >
+          <h2 
+            className="font-bold"
+            style={{ 
+              fontFamily: 'MADE Gentle, sans-serif', 
+              fontSize: '32px',
+              textAlign: 'center',
+              color: '#FFFFFF',
+              margin: 0,
+              padding: 0
+            }}
+          >
+            Round {currentRound}
+          </h2>
+          <p 
+            className="mt-4"
+            style={{ 
+              fontFamily: 'MADE Gentle, sans-serif', 
+              fontSize: '18px',
+              textAlign: 'center',
+              color: '#FFFFFF',
+              marginTop: '16px',
+              marginBottom: 0,
+              padding: 0
+            }}
+          >
+            Question submitted!
+          </p>
+          <p 
+            style={{ 
+              fontFamily: 'MADE Gentle, sans-serif', 
+              fontSize: '18px',
+              textAlign: 'center',
+              color: '#FFFFFF',
+              marginTop: '8px',
+              marginBottom: 0,
+              padding: 0
+            }}
+          >
+            Waiting for others to submit<AnimatedEllipses />
+          </p>
         </div>
       </div>
     );
@@ -512,6 +584,24 @@ function Player() {
     const formatQuestion = (text) => {
       const trimmedText = text.trim();
       return trimmedText.endsWith('?') ? trimmedText : `${trimmedText}?`;
+    };
+
+    // Animated ellipses component
+    const AnimatedEllipses = () => {
+      const [dots, setDots] = useState('.');
+
+      useEffect(() => {
+        const interval = setInterval(() => {
+          setDots(prev => {
+            if (prev === '.') return '..';
+            if (prev === '..') return '...';
+            return '.';
+          });
+        }, 500);
+        return () => clearInterval(interval);
+      }, []);
+
+      return <span>{dots}</span>;
     };
 
     return (
@@ -563,65 +653,96 @@ function Player() {
                 padding: 0
               }}
             >
-              Vote best question
+              {hasVoted ? 'Vote submitted!' : 'Vote best question'}
             </p>
-          </div>
-
-          <div className="bg-white rounded-xl p-6 mt-2">
-            {!hasVoted ? (
-              <>
-                {displayedQuestions.length > 0 ? (
-                  <div className="space-y-3">
-                    {displayedQuestions.map((question) => {
-                      // Find the question's original index in the full questions array
-                      const originalIndex = allQuestions.findIndex(q => q.id === question.id);
-                      const questionNumber = originalIndex !== -1 ? originalIndex + 1 : 0;
-                      
-                      return (
-                        <button
-                          key={question.id}
-                          onClick={() => handleVote(question.id)}
-                          className="w-full text-white font-bold text-left transition-all cursor-pointer"
-                          style={{
-                            border: 'none',
-                            outline: 'none',
-                            backgroundColor: '#B96759',
-                            borderRadius: '12px',
-                            padding: '8px 20px',
-                            fontFamily: 'MADE Gentle, sans-serif',
-                            fontSize: '32px',
-                            color: '#FFFFFF',
-                            boxShadow: 'none',
-                            transform: 'scale(1)',
-                            transition: 'all 0.2s ease'
-                          }}
-                          onMouseEnter={(e) => {
-                            e.currentTarget.style.backgroundColor = '#98483A';
-                            e.currentTarget.style.transform = 'scale(1.02)';
-                          }}
-                          onMouseLeave={(e) => {
-                            e.currentTarget.style.backgroundColor = '#B96759';
-                            e.currentTarget.style.transform = 'scale(1)';
-                          }}
-                        >
-                          Question {questionNumber}
-                        </button>
-                      );
-                    })}
-                  </div>
-                ) : (
-                  <p className="text-[#B96759]">No questions available to vote on</p>
-                )}
-              </>
-            ) : (
-              <div>
-                <h3 className="text-xl font-semibold text-[#B96759] mb-2">Vote Submitted!</h3>
-                <p className="text-[#B96759]">
-                  Waiting for other players to vote... ({totalVotes} of {players.length} votes)
-                </p>
-              </div>
+            {hasVoted && (
+              <p 
+                className="text-white"
+                style={{ 
+                  fontFamily: 'MADE Gentle, sans-serif', 
+                  fontSize: '18px',
+                  textAlign: 'center',
+                  color: '#FFFFFF',
+                  marginTop: '8px',
+                  marginBottom: 0,
+                  padding: 0
+                }}
+              >
+                Waiting for others to vote<AnimatedEllipses />
+              </p>
             )}
           </div>
+
+          {!hasVoted && (
+            <div className="bg-white rounded-xl p-6 mt-2">
+              {displayedQuestions.length > 0 ? (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                  {displayedQuestions.map((question) => {
+                    // Find the question's original index in the full questions array
+                    const originalIndex = allQuestions.findIndex(q => q.id === question.id);
+                    const questionNumber = originalIndex !== -1 ? originalIndex + 1 : 0;
+                    
+                    return (
+                      <button
+                        key={question.id}
+                        onClick={() => handleVote(question.id)}
+                        className="w-full text-white font-bold text-left transition-all cursor-pointer"
+                        style={{
+                          border: 'none',
+                          outline: 'none',
+                          backgroundColor: '#B96759',
+                          borderRadius: '12px',
+                          padding: '8px 20px',
+                          fontFamily: 'MADE Gentle, sans-serif',
+                          fontSize: '32px',
+                          color: '#FFFFFF',
+                          boxShadow: 'none',
+                          transform: 'scale(1)',
+                          transition: 'all 0.2s ease'
+                        }}
+                        onFocus={(e) => {
+                          e.currentTarget.style.outline = 'none';
+                          e.currentTarget.style.border = 'none';
+                          e.currentTarget.style.boxShadow = 'none';
+                        }}
+                        onBlur={(e) => {
+                          e.currentTarget.style.outline = 'none';
+                          e.currentTarget.style.border = 'none';
+                          e.currentTarget.style.boxShadow = 'none';
+                        }}
+                        onMouseDown={(e) => {
+                          e.currentTarget.style.border = 'none';
+                          e.currentTarget.style.outline = 'none';
+                          e.currentTarget.style.boxShadow = 'none';
+                        }}
+                        onMouseUp={(e) => {
+                          e.currentTarget.style.border = 'none';
+                          e.currentTarget.style.outline = 'none';
+                          e.currentTarget.style.boxShadow = 'none';
+                        }}
+                        onMouseEnter={(e) => {
+                          e.currentTarget.style.backgroundColor = '#98483A';
+                          e.currentTarget.style.transform = 'scale(1.02)';
+                          e.currentTarget.style.border = 'none';
+                          e.currentTarget.style.outline = 'none';
+                        }}
+                        onMouseLeave={(e) => {
+                          e.currentTarget.style.backgroundColor = '#B96759';
+                          e.currentTarget.style.transform = 'scale(1)';
+                          e.currentTarget.style.border = 'none';
+                          e.currentTarget.style.outline = 'none';
+                        }}
+                      >
+                        Question {questionNumber}
+                      </button>
+                    );
+                  })}
+                </div>
+              ) : (
+                <p className="text-[#B96759]">No questions available to vote on</p>
+              )}
+            </div>
+          )}
         </div>
       </div>
     );
@@ -661,48 +782,181 @@ function Player() {
     // If not the answerer and transition screen is showing, return null
     if (!isAnswering && showTransitionScreen) return null;
 
+    // Animated ellipses component
+    const AnimatedEllipses = () => {
+      const [dots, setDots] = useState('.');
+
+      useEffect(() => {
+        const interval = setInterval(() => {
+          setDots(prev => {
+            if (prev === '.') return '..';
+            if (prev === '..') return '...';
+            return '.';
+          });
+        }, 500);
+        return () => clearInterval(interval);
+      }, []);
+
+      return <span>{dots}</span>;
+    };
+
     return (
-      <div className="flex flex-col items-center justify-center min-h-screen px-2 py-6 bg-[#F8F4F0]">
-        <div className="w-full max-w-md mx-auto rounded-2xl shadow-lg bg-[#B96759] p-4">
-          <h2 className="text-2xl font-bold text-white text-center mb-4">Round {currentRound}</h2>
+      <div 
+        className="flex justify-center bg-[#D67C6D]"
+        style={{
+          width: '100vw',
+          height: '100vh',
+          maxHeight: '100vh',
+          overflow: 'hidden',
+          padding: '16px',
+          paddingTop: '10vh',
+          boxSizing: 'border-box',
+          alignItems: 'flex-start'
+        }}
+      >
+        <div 
+          className="flex flex-col"
+          style={{
+            width: '85%',
+            justifyContent: 'flex-start',
+            boxSizing: 'border-box'
+          }}
+        >
+          {/* Header Container */}
+          <div className="flex flex-col items-center" style={{ marginBottom: '16px' }}>
+            <h2 
+              className="font-bold"
+              style={{ 
+                fontFamily: 'MADE Gentle, sans-serif', 
+                fontSize: '32px',
+                textAlign: 'center',
+                color: '#FFFFFF',
+                margin: 0,
+                padding: 0
+              }}
+            >
+              Round {currentRound}
+            </h2>
+            {isAnswering && (
+              <p 
+                className="text-white"
+                style={{ 
+                  fontFamily: 'MADE Gentle, sans-serif', 
+                  fontSize: '24px',
+                  textAlign: 'center',
+                  color: '#FFFFFF',
+                  marginTop: '4px',
+                  marginBottom: 0,
+                  padding: 0
+                }}
+              >
+                {showPlayerSelection ? 'Guess your curious cat!' : 'Answer the question on the screen'}
+              </p>
+            )}
+          </div>
+
           {isAnswering ? (
-            <div className="bg-white rounded-xl p-6 mt-2">
-              <h3 className="text-xl font-semibold text-[#B96759] mb-2">Answer your question</h3>
-              <p className="text-[#B96759] text-lg mb-4">{selectedQuestion}</p>
+            <div className="flex flex-col">
               {isOwnQuestion ? (
-                <div className="mt-2">
+                <div>
                   {!showGuessPrompt ? (
-                    <p className="text-[#B96759] text-lg mb-2">Reading the question...</p>
+                    <p 
+                      style={{ 
+                        fontFamily: 'MADE Gentle, sans-serif', 
+                        fontSize: '18px',
+                        color: '#FFFFFF',
+                        marginBottom: '16px'
+                      }}
+                    >
+                      Reading the question...
+                    </p>
                   ) : (
                     <>
-                      <p className="text-[#B96759] text-lg mb-2">You wrote this question! No guessing!</p>
-                      <button 
-                        onClick={() => {
-                          socket.emit('skip_guess', { roomCode });
-                          setShowTransitionScreen(true);
+                      <p 
+                        className="mb-4"
+                        style={{ 
+                          fontFamily: 'MADE Gentle, sans-serif', 
+                          fontSize: '18px',
+                          color: '#FFFFFF',
+                          marginBottom: '16px'
                         }}
-                        className="w-full py-3 mt-2 rounded-xl bg-[#B96759] text-white font-bold text-lg shadow hover:bg-[#98483A] transition"
                       >
-                        Next
-                      </button>
+                        You wrote this question! No guessing!
+                      </p>
+                      <div className="flex justify-center" style={{ marginTop: '28px' }}>
+                        <button 
+                          onClick={() => {
+                            socket.emit('skip_guess', { roomCode });
+                            setShowTransitionScreen(true);
+                          }}
+                          className="bg-white rounded-full text-[#B96759] font-bold hover:bg-opacity-90 transition-all focus:outline-none focus:ring-2 focus:ring-white"
+                          style={{
+                            width: '50%',
+                            minWidth: '80px',
+                            paddingTop: '12px',
+                            paddingBottom: '10px',
+                            paddingLeft: '5px',
+                            paddingRight: '5px',
+                            fontFamily: 'Heyam, sans-serif',
+                            fontSize: '24px',
+                            border: 'none',
+                            cursor: 'pointer'
+                          }}
+                        >
+                          Next
+                        </button>
+                      </div>
                     </>
                   )}
                 </div>
               ) : (
                 <>
                   {showGuessPrompt && !showPlayerSelection && (
-                    <div className="mt-2">
-                      <p className="text-[#B96759] text-lg mb-2">Would you like to guess who asked you this question?</p>
-                      <div className="flex gap-2">
+                    <div>
+                      <p 
+                        className="mb-4"
+                        style={{ 
+                          fontFamily: 'MADE Gentle, sans-serif', 
+                          fontSize: '18px',
+                          color: '#FFFFFF',
+                          marginBottom: '16px',
+                          textAlign: 'center'
+                        }}
+                      >
+                        Would you like to guess your curious cat?
+                      </p>
+                      <div className="flex justify-center" style={{ marginTop: '24px', gap: '10px' }}>
                         <button 
                           onClick={() => handleGuessChoice(true)}
-                          className="w-1/2 py-3 rounded-xl bg-[#B96759] text-white font-bold text-lg shadow hover:bg-[#98483A] transition"
+                          className="bg-white rounded-full text-[#B96759] font-bold hover:bg-opacity-90 transition-all focus:outline-none focus:ring-2 focus:ring-white"
+                          style={{
+                            width: '25%',
+                            paddingTop: '12px',
+                            paddingBottom: '10px',
+                            paddingLeft: '24px',
+                            paddingRight: '24px',
+                            fontFamily: 'Heyam, sans-serif',
+                            fontSize: '24px',
+                            border: 'none',
+                            cursor: 'pointer'
+                          }}
                         >
                           Yes
                         </button>
                         <button 
                           onClick={() => handleGuessChoice(false)}
-                          className="w-1/2 py-3 rounded-xl bg-[#B96759] text-white font-bold text-lg shadow hover:bg-[#98483A] transition"
+                          className="bg-white rounded-full text-[#B96759] font-bold hover:bg-opacity-90 transition-all focus:outline-none focus:ring-2 focus:ring-white"
+                          style={{
+                            width: '25%',
+                            paddingTop: '12px',
+                            paddingBottom: '10px',
+                            paddingLeft: '24px',
+                            paddingRight: '24px',
+                            fontFamily: 'Heyam, sans-serif',
+                            fontSize: '24px',
+                            border: 'none',
+                            cursor: 'pointer'
+                          }}
                         >
                           No
                         </button>
@@ -710,11 +964,31 @@ function Player() {
                     </div>
                   )}
                   {showPlayerSelection && (
-                    <div className="mt-2">
+                    <div>
                       <select
                         value={guessedPlayer}
                         onChange={(e) => setGuessedPlayer(e.target.value)}
-                        className="w-full p-3 rounded-lg bg-[#B96759] text-white text-lg mb-2"
+                        className="bg-white text-[#B96759] focus:outline-none focus:ring-2 focus:ring-white transition-all"
+                        style={{
+                          width: '100%',
+                          maxWidth: '100%',
+                          padding: '10px 10px',
+                          paddingRight: '40px',
+                          borderRadius: '12px',
+                          fontFamily: 'MADE Gentle, sans-serif',
+                          fontSize: '18px',
+                          border: 'none',
+                          boxShadow: 'none',
+                          WebkitAppearance: 'none',
+                          MozAppearance: 'none',
+                          appearance: 'none',
+                          boxSizing: 'border-box',
+                          backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23B96759' d='M6 9L1 4h10z'/%3E%3C/svg%3E")`,
+                          backgroundRepeat: 'no-repeat',
+                          backgroundPosition: 'right 12px center',
+                          backgroundSize: '12px',
+                          marginBottom: '16px'
+                        }}
                       >
                         <option value="">Select who you think asked the question...</option>
                         {players
@@ -726,13 +1000,27 @@ function Player() {
                           ))
                         }
                       </select>
-                      <button 
-                        onClick={handleGuessSubmit}
-                        disabled={!guessedPlayer}
-                        className="w-full py-3 mt-2 rounded-xl bg-[#B96759] text-white font-bold text-lg shadow hover:bg-[#98483A] transition disabled:opacity-50"
-                      >
-                        Submit Guess
-                      </button>
+                      <div className="flex justify-center" style={{ marginTop: '28px' }}>
+                        <button 
+                          onClick={handleGuessSubmit}
+                          disabled={!guessedPlayer}
+                          className="bg-white rounded-full text-[#B96759] font-bold hover:bg-opacity-90 transition-all focus:outline-none focus:ring-2 focus:ring-white disabled:opacity-50"
+                          style={{
+                            width: '50%',
+                            minWidth: '80px',
+                            paddingTop: '12px',
+                            paddingBottom: '10px',
+                            paddingLeft: '5px',
+                            paddingRight: '5px',
+                            fontFamily: 'Heyam, sans-serif',
+                            fontSize: '24px',
+                            border: 'none',
+                            cursor: guessedPlayer ? 'pointer' : 'not-allowed'
+                          }}
+                        >
+                          Submit
+                        </button>
+                      </div>
                     </div>
                   )}
                 </>
@@ -740,9 +1028,17 @@ function Player() {
             </div>
           ) : (
             !showTransitionScreen && (
-              <div className="bg-white rounded-xl p-6 mt-2 text-center">
-                <h3 className="text-xl font-semibold text-[#B96759] mb-2">Question being answered</h3>
-                <p className="text-[#B96759] text-lg mb-2">{targetPlayer?.name || "Another player"} is answering their question...</p>
+              <div className="flex flex-col items-center">
+                <p 
+                  style={{ 
+                    fontFamily: 'MADE Gentle, sans-serif', 
+                    fontSize: '18px',
+                    color: '#FFFFFF',
+                    textAlign: 'center'
+                  }}
+                >
+                  {targetPlayer?.name || "Another player"} is answering their question<AnimatedEllipses />
+                </p>
               </div>
             )
           )}
@@ -755,13 +1051,54 @@ function Player() {
     if (!showTransitionScreen) return null;
 
     return (
-      <div className="flex flex-col items-center justify-center min-h-screen px-2 py-6 bg-[#F8F4F0]">
-        <div className="w-full max-w-md mx-auto rounded-2xl shadow-lg bg-[#B96759] p-4 text-center">
-          <h2 className="text-2xl font-bold text-white mb-4">Round {currentRound}</h2>
-          <div className="bg-white rounded-xl p-6 mt-2">
-            <h3 className="text-xl font-semibold text-[#B96759] mb-2">Please Look at the Main Screen</h3>
-            <p className="text-[#B96759]">Waiting for next round to begin...</p>
-          </div>
+      <div 
+        className="flex justify-center bg-[#D67C6D]"
+        style={{
+          width: '100vw',
+          height: '100vh',
+          maxHeight: '100vh',
+          overflow: 'hidden',
+          padding: '16px',
+          paddingTop: '10vh',
+          boxSizing: 'border-box',
+          alignItems: 'flex-start'
+        }}
+      >
+        <div 
+          className="flex flex-col items-center"
+          style={{
+            width: '85%',
+            justifyContent: 'flex-start',
+            boxSizing: 'border-box'
+          }}
+        >
+          <h2 
+            className="font-bold"
+            style={{ 
+              fontFamily: 'MADE Gentle, sans-serif', 
+              fontSize: '32px',
+              textAlign: 'center',
+              color: '#FFFFFF',
+              margin: 0,
+              padding: 0
+            }}
+          >
+            Round {currentRound}
+          </h2>
+          <p 
+            className="mt-4"
+            style={{ 
+              fontFamily: 'MADE Gentle, sans-serif', 
+              fontSize: '18px',
+              textAlign: 'center',
+              color: '#FFFFFF',
+              marginTop: '16px',
+              marginBottom: 0,
+              padding: 0
+            }}
+          >
+            Please look at the main screen
+          </p>
         </div>
       </div>
     );
@@ -782,41 +1119,134 @@ function Player() {
   // Render reconnection choice if there's stored data
   if (hasStoredData && !joined && !isReconnecting) {
     return (
-      <div className="p-8">
-        <h2 className="text-2xl mb-4">Previous Session Found</h2>
-        <div className="bg-gray-800 p-4 rounded mb-4">
-          <p>Room Code: <span className="font-mono font-bold">{storedRoom}</span></p>
-          <p>Player Name: <span className="font-bold">{storedName}</span></p>
-        </div>
-        <div className="space-y-4">
-          <button
-            onClick={() => {
-              setIsReconnecting(true);
-              connectSocket();  // Connect socket before attempting reconnection
-              socket.emit('attempt_reconnect', {
-                playerName: storedName,
-                roomCode: storedRoom
-              });
+      <div 
+        className="flex justify-center bg-[#D67C6D]"
+        style={{
+          width: '100vw',
+          height: '100vh',
+          maxHeight: '100vh',
+          overflow: 'hidden',
+          padding: '16px',
+          paddingTop: '10vh',
+          boxSizing: 'border-box',
+          alignItems: 'flex-start'
+        }}
+      >
+        <div 
+          className="flex flex-col"
+          style={{
+            width: '85%',
+            justifyContent: 'flex-start',
+            boxSizing: 'border-box'
+          }}
+        >
+          <h2 
+            className="font-bold mb-6"
+            style={{ 
+              fontFamily: 'MADE Gentle, sans-serif', 
+              fontSize: '32px',
+              textAlign: 'center',
+              color: '#FFFFFF',
+              margin: 0,
+              marginBottom: '24px',
+              padding: 0
             }}
-            className="w-full bg-blue-600 px-6 py-2 rounded"
           >
-            Rejoin Previous Game
-          </button>
-          <button
-            onClick={() => {
-              clearPlayerData();
-              setHasStoredData(false);
-              setStoredRoom('');
-              setStoredName('');
-              setRoomCode('');
-              setPlayerName('');
+            Previous session found
+          </h2>
+          <div 
+            className="mb-6"
+            style={{
+              backgroundColor: 'rgba(255, 255, 255, 0.2)',
+              borderRadius: '12px',
+              padding: '16px',
+              marginBottom: '24px'
             }}
-            className="w-full bg-gray-600 px-6 py-2 rounded"
           >
-            Join New Game
-          </button>
+            <p 
+              style={{ 
+                fontFamily: 'MADE Gentle, sans-serif', 
+                fontSize: '18px',
+                color: '#FFFFFF',
+                marginBottom: '8px'
+              }}
+            >
+              Room Code: <span style={{ fontFamily: 'MADE Gentle, sans-serif', fontWeight: 'bold' }}>{storedRoom}</span>
+            </p>
+            <p 
+              style={{ 
+                fontFamily: 'MADE Gentle, sans-serif', 
+                fontSize: '18px',
+                color: '#FFFFFF'
+              }}
+            >
+              Player Name: <span style={{ fontWeight: 'bold' }}>{storedName}</span>
+            </p>
+          </div>
+          <div className="flex flex-col" style={{ gap: '16px' }}>
+            <button
+              onClick={() => {
+                setIsReconnecting(true);
+                connectSocket();
+                socket.emit('attempt_reconnect', {
+                  playerName: storedName,
+                  roomCode: storedRoom
+                });
+              }}
+              className="bg-white rounded-full text-[#B96759] font-bold hover:bg-opacity-90 transition-all focus:outline-none focus:ring-2 focus:ring-white"
+              style={{
+                width: '100%',
+                paddingTop: '12px',
+                paddingBottom: '10px',
+                paddingLeft: '5px',
+                paddingRight: '5px',
+                fontFamily: 'Heyam, sans-serif',
+                fontSize: '24px',
+                border: 'none',
+                cursor: 'pointer'
+              }}
+            >
+              Rejoin previous game
+            </button>
+            <button
+              onClick={() => {
+                clearPlayerData();
+                setHasStoredData(false);
+                setStoredRoom('');
+                setStoredName('');
+                setRoomCode('');
+                setPlayerName('');
+              }}
+              className="bg-white rounded-full text-[#B96759] font-bold hover:bg-opacity-90 transition-all focus:outline-none focus:ring-2 focus:ring-white"
+              style={{
+                width: '100%',
+                paddingTop: '12px',
+                paddingBottom: '10px',
+                paddingLeft: '5px',
+                paddingRight: '5px',
+                fontFamily: 'Heyam, sans-serif',
+                fontSize: '24px',
+                border: 'none',
+                cursor: 'pointer'
+              }}
+            >
+              Join new game
+            </button>
+          </div>
+          {error && (
+            <p 
+              className="mt-4 text-center"
+              style={{ 
+                color: '#FFFFFF',
+                fontSize: '14px',
+                borderRadius: '12px',
+                padding: '8px'
+              }}
+            >
+              {error}
+            </p>
+          )}
         </div>
-        {error && <p className="text-red-500 mt-4">{error}</p>}
       </div>
     );
   }
@@ -874,7 +1304,7 @@ function Player() {
                 maxWidth: '100%',
                 padding: '12px 10px',
                 borderRadius: '12px',
-                fontFamily: 'inherit',
+                fontFamily: 'MADE Gentle, sans-serif',
                 fontSize: '18px',
                 border: 'none',
                 boxShadow: 'none',
@@ -911,7 +1341,7 @@ function Player() {
                 maxWidth: '100%',
                 padding: '12px 10px',
                 borderRadius: '12px',
-                fontFamily: 'inherit',
+                fontFamily: 'MADE Gentle, sans-serif',
                 fontSize: '18px',
                 border: 'none',
                 boxShadow: 'none',
@@ -926,7 +1356,7 @@ function Player() {
 
           {/* Error Message */}
           {error && (
-            <p className="text-white text-center text-sm bg-red-500/50 rounded-full px-4 py-2 mt-4">
+            <p className="text-white text-center text-sm rounded-full px-4 py-2 mt-4" style={{ color: '#FFFFFF' }}>
               {error}
             </p>
           )}
@@ -958,13 +1388,101 @@ function Player() {
   }
 
   if (gameState === 'waiting') {
+    // Animated ellipses component
+    const AnimatedEllipses = () => {
+      const [dots, setDots] = useState('.');
+
+      useEffect(() => {
+        const interval = setInterval(() => {
+          setDots(prev => {
+            if (prev === '.') return '..';
+            if (prev === '..') return '...';
+            return '.';
+          });
+        }, 500);
+        return () => clearInterval(interval);
+      }, []);
+
+      return <span>{dots}</span>;
+    };
+
     return (
-      <div className="p-8">
-        <h2 className="text-2xl mb-4">Game Lobby</h2>
-        <p className="text-green-500 mb-4">{joinStatus}</p>
-        <div className="bg-gray-800 p-4 rounded">
-          <p>Room Code: <span className="font-mono font-bold">{roomCode}</span></p>
-          <p>Your Name: <span className="font-bold">{playerName}</span></p>
+      <div 
+        className="flex justify-center bg-[#D67C6D]"
+        style={{
+          width: '100vw',
+          height: '100vh',
+          maxHeight: '100vh',
+          overflow: 'hidden',
+          padding: '16px',
+          paddingTop: '10vh',
+          boxSizing: 'border-box',
+          alignItems: 'flex-start'
+        }}
+      >
+        <div 
+          className="flex flex-col items-center"
+          style={{
+            width: '85%',
+            justifyContent: 'flex-start',
+            boxSizing: 'border-box'
+          }}
+        >
+          <h2 
+            className="font-bold mb-6"
+            style={{ 
+              fontFamily: 'MADE Gentle, sans-serif', 
+              fontSize: '32px',
+              textAlign: 'center',
+              color: '#FFFFFF',
+              margin: 0,
+              marginBottom: '24px',
+              padding: 0
+            }}
+          >
+            Game lobby
+          </h2>
+          <p 
+            className="mb-6"
+            style={{ 
+              fontFamily: 'MADE Gentle, sans-serif', 
+              fontSize: '18px',
+              textAlign: 'center',
+              color: '#FFFFFF',
+              marginBottom: '24px'
+            }}
+          >
+            {joinStatus}<AnimatedEllipses />
+          </p>
+          <div 
+            style={{
+              backgroundColor: 'rgba(255, 255, 255, 0.2)',
+              borderRadius: '12px',
+              padding: '16px',
+              width: '85%',
+              margin: '0 auto'
+            }}
+          >
+            <p 
+              style={{ 
+                fontFamily: 'MADE Gentle, sans-serif', 
+                fontSize: '18px',
+                color: '#FFFFFF',
+                marginBottom: '8px'
+              }}
+            >
+              Room Code: <span style={{ fontFamily: 'MADE Gentle, sans-serif', fontWeight: 'bold' }}>{roomCode}</span>
+            </p>
+            <p 
+              style={{ 
+                fontFamily: 'MADE Gentle, sans-serif', 
+                fontSize: '18px',
+                color: '#FFFFFF'
+              }}
+            >
+              Your Name: <span style={{ fontWeight: 'bold' }}>{playerName}</span>
+            </p>
+          </div>
         </div>
       </div>
     );
@@ -973,9 +1491,55 @@ function Player() {
   // Add a loading state for reconnection
   if (isReconnecting) {
     return (
-      <div className="p-8 text-center">
-        <h2 className="text-2xl mb-4">Reconnecting...</h2>
-        <p>Attempting to rejoin the game...</p>
+      <div 
+        className="flex justify-center bg-[#D67C6D]"
+        style={{
+          width: '100vw',
+          height: '100vh',
+          maxHeight: '100vh',
+          overflow: 'hidden',
+          padding: '16px',
+          paddingTop: '10vh',
+          boxSizing: 'border-box',
+          alignItems: 'flex-start'
+        }}
+      >
+        <div 
+          className="flex flex-col items-center"
+          style={{
+            width: '85%',
+            justifyContent: 'flex-start',
+            boxSizing: 'border-box'
+          }}
+        >
+          <h2 
+            className="font-bold"
+            style={{ 
+              fontFamily: 'MADE Gentle, sans-serif', 
+              fontSize: '32px',
+              textAlign: 'center',
+              color: '#FFFFFF',
+              margin: 0,
+              padding: 0
+            }}
+          >
+            Reconnecting...
+          </h2>
+          <p 
+            className="mt-4"
+            style={{ 
+              fontFamily: 'MADE Gentle, sans-serif', 
+              fontSize: '18px',
+              textAlign: 'center',
+              color: '#FFFFFF',
+              marginTop: '16px',
+              marginBottom: 0,
+              padding: 0
+            }}
+          >
+            Attempting to rejoin the game...
+          </p>
+        </div>
       </div>
     );
   }

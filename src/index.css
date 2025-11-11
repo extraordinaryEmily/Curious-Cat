@@ -31,6 +31,15 @@ body {
    If you need a global page background, set it on body or #root instead of hijacking
    Tailwind utility classes. */
 
+/* Remove focus borders and outlines from buttons */
+button:focus,
+button:active,
+button:focus-visible {
+  outline: none !important;
+  border: none !important;
+  box-shadow: none !important;
+}
+
 
 
 
