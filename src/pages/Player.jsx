@@ -20,6 +20,7 @@ function Player() {
   const [selectedTarget, setSelectedTarget] = useState('');
   const [hasSubmitted, setHasSubmitted] = useState(false);
   const [displayedQuestions, setDisplayedQuestions] = useState([]);
+  const [allQuestions, setAllQuestions] = useState([]); // Store original questions array for numbering
   const [hasVoted, setHasVoted] = useState(false);
   const [isAnswering, setIsAnswering] = useState(false);
   const [selectedQuestion, setSelectedQuestion] = useState(null);
@@ -70,6 +71,9 @@ function Player() {
       console.log('=== Voting Phase Debug ===');
       console.log('All questions received:', questions);
       console.log('Current socket ID:', socket.id);
+      
+      // Store original questions array for correct numbering
+      setAllQuestions(questions);
       
       // Filter out the player's own question
       const filteredQuestions = questions.filter(question => {
@@ -286,8 +290,8 @@ function Player() {
       setError('Please fill in both the question and select a target player');
       return;
     }
-    if (question.length > 150) {  // Changed from 200 to 150
-      setError('Question must be 150 characters or less');
+    if (question.length > 120) {
+      setError('Question must be 120 characters or less');
       return;
     }
 
@@ -307,42 +311,174 @@ function Player() {
     const availablePlayers = players;
 
     return (
-      <div className="flex flex-col items-center justify-center min-h-screen px-2 py-6 bg-[#F8F4F0]">
-        <div className="w-full max-w-md mx-auto rounded-2xl shadow-lg bg-[#B96759] p-4">
-          <h2 className="text-2xl font-bold text-white text-center mb-4">Round {currentRound}</h2>
-          <form onSubmit={handleSubmitQuestion} className="space-y-4">
-            <div>
-              <label className="block mb-2 text-white">Question:</label>
-              <input
-                type="text"
+      <div 
+        className="flex justify-center bg-[#D67C6D]"
+        style={{
+          width: '100vw',
+          height: '100vh',
+          maxHeight: '100vh',
+          overflow: 'hidden',
+          padding: '16px',
+          paddingTop: '10vh',
+          boxSizing: 'border-box',
+          alignItems: 'flex-start'
+        }}
+      >
+        <div 
+          className="flex flex-col"
+          style={{
+            width: '85%',
+            justifyContent: 'flex-start',
+            boxSizing: 'border-box'
+          }}
+        >
+          {/* Header Container */}
+          <div className="flex flex-col items-center" style={{ marginBottom: '16px' }}>
+            <h2 
+              className="text-white font-bold"
+              style={{ 
+                fontFamily: 'MADE Gentle, sans-serif', 
+                fontSize: '32px',
+                textAlign: 'center',
+                color: '#FFFFFF',
+                margin: 0,
+                padding: 0
+              }}
+            >
+              Round {currentRound}
+            </h2>
+            <p 
+              className="text-white"
+              style={{ 
+                fontFamily: 'MADE Gentle, sans-serif', 
+                fontSize: '24px',
+                textAlign: 'center',
+                color: '#FFFFFF',
+                marginTop: '4px',
+                marginBottom: 0,
+                padding: 0
+              }}
+            >
+              Ask your question
+            </p>
+          </div>
+
+          {/* Form Container */}
+          <form onSubmit={handleSubmitQuestion} className="flex flex-col">
+            {/* Question Input */}
+            <div className="flex flex-col" style={{ width: '100%', marginBottom: '24px' }}>
+              <label
+                className="font-bold mb-2"
+                style={{ 
+                  fontFamily: 'MADE Gentle, sans-serif', 
+                  fontSize: '32px',
+                  textAlign: 'left',
+                  color: '#FFFFFF'
+                }}
+              >
+                Question
+              </label>
+              <textarea
                 value={question}
                 onChange={(e) => setQuestion(e.target.value)}
-                placeholder="Enter your question..."
-                className="w-full p-3 rounded-lg bg-white text-[#B96759] text-lg focus:outline-none focus:ring-2 focus:ring-[#B96759]"
-                maxLength={150}
+                placeholder=""
+                maxLength={120}
+                className="bg-white text-[#B96759] focus:outline-none focus:ring-2 focus:ring-white transition-all resize-none"
+                style={{
+                  width: '100%',
+                  maxWidth: '100%',
+                  padding: '10px 10px',
+                  borderRadius: '12px',
+                  fontFamily: 'inherit',
+                  fontSize: '18px',
+                  border: 'none',
+                  boxShadow: 'none',
+                  WebkitAppearance: 'none',
+                  MozAppearance: 'none',
+                  appearance: 'none',
+                  boxSizing: 'border-box',
+                  minHeight: '60px',
+                  wordWrap: 'break-word',
+                  overflowWrap: 'break-word'
+                }}
               />
-              <span className="block text-right text-xs text-white mt-1">{question.length}/150</span>
+              <span className="block text-right text-xs mt-1" style={{ color: '#FFFFFF' }}>{question.length}/120</span>
             </div>
-            <div>
-              <label className="block mb-2 text-white">Ask this question to:</label>
-              <select
-                value={selectedTarget}
-                onChange={(e) => setSelectedTarget(e.target.value)}
-                className="w-full p-3 rounded-lg bg-white text-[#B96759] text-lg focus:outline-none"
+
+            {/* Responder Dropdown */}
+            <div className="flex flex-col" style={{ width: '100%', marginBottom: '6px' }}>
+              <label
+                className="font-bold mb-2"
+                style={{ 
+                  fontFamily: 'MADE Gentle, sans-serif', 
+                  fontSize: '32px',
+                  textAlign: 'left',
+                  color: '#FFFFFF'
+                }}
               >
-                <option value="">Select a player...</option>
-                {availablePlayers.map(player => (
-                  <option key={player.id} value={player.id}>{player.name}</option>
-                ))}
-              </select>
+                Responder
+              </label>
+              <div style={{ position: 'relative', width: '100%' }}>
+                <select
+                  value={selectedTarget}
+                  onChange={(e) => setSelectedTarget(e.target.value)}
+                  className="bg-white text-[#B96759] focus:outline-none focus:ring-2 focus:ring-white transition-all"
+                  style={{
+                    width: '100%',
+                    maxWidth: '100%',
+                    padding: '10px 10px',
+                    paddingRight: '40px',
+                    borderRadius: '12px',
+                    fontFamily: 'inherit',
+                    fontSize: '18px',
+                    border: 'none',
+                    boxShadow: 'none',
+                    WebkitAppearance: 'none',
+                    MozAppearance: 'none',
+                    appearance: 'none',
+                    boxSizing: 'border-box',
+                    backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23B96759' d='M6 9L1 4h10z'/%3E%3C/svg%3E")`,
+                    backgroundRepeat: 'no-repeat',
+                    backgroundPosition: 'right 12px center',
+                    backgroundSize: '12px'
+                  }}
+                >
+                  <option value="">Select a player...</option>
+                  {availablePlayers.map(player => (
+                    <option key={player.id} value={player.id}>{player.name}</option>
+                  ))}
+                </select>
+              </div>
             </div>
-            {error && <p className="text-red-500 text-center">{error}</p>}
-            <button 
-              type="submit"
-              className="w-full py-3 mt-2 rounded-xl bg-white text-[#B96759] font-bold text-lg shadow hover:bg-[#F8F4F0] transition"
-            >
-              Submit Question
-            </button>
+
+            {/* Error Message */}
+            {error && (
+              <p className="text-white text-center text-sm bg-red-500/50 rounded-full px-4 py-2 mb-4">
+                {error}
+              </p>
+            )}
+
+            {/* Submit Button */}
+            <div className="flex justify-center" style={{ marginTop: '28px' }}>
+              <button
+                type="submit"
+                className="bg-white rounded-full text-[#B96759] font-bold hover:bg-opacity-90 transition-all focus:outline-none focus:ring-2 focus:ring-white"
+                style={{
+                  width: '50%',
+                  minWidth: '80px',
+                  paddingTop: '12px',
+                  paddingBottom: '10px',
+                  paddingLeft: '5px',
+                  paddingRight: '5px',
+                  fontFamily: 'Heyam, sans-serif',
+                  fontSize: '24px',
+                  border: 'none',
+                  cursor: 'pointer'
+                }}
+              >
+                Submit
+              </button>
+            </div>
           </form>
         </div>
       </div>
@@ -379,24 +515,99 @@ function Player() {
     };
 
     return (
-      <div className="flex flex-col items-center justify-center min-h-screen px-2 py-6 bg-[#F8F4F0]">
-        <div className="w-full max-w-md mx-auto rounded-2xl shadow-lg bg-[#B96759] p-4">
-          <h2 className="text-2xl font-bold text-white text-center mb-4">Round {currentRound}</h2>
+      <div 
+        className="flex justify-center bg-[#D67C6D]"
+        style={{
+          width: '100vw',
+          height: '100vh',
+          maxHeight: '100vh',
+          overflow: 'hidden',
+          padding: '16px',
+          paddingTop: '10vh',
+          boxSizing: 'border-box',
+          alignItems: 'flex-start'
+        }}
+      >
+        <div 
+          className="flex flex-col"
+          style={{
+            width: '85%',
+            justifyContent: 'flex-start',
+            boxSizing: 'border-box'
+          }}
+        >
+          {/* Header Container */}
+          <div className="flex flex-col items-center" style={{ marginBottom: '16px' }}>
+            <h2 
+              className="text-white font-bold"
+              style={{ 
+                fontFamily: 'MADE Gentle, sans-serif', 
+                fontSize: '32px',
+                textAlign: 'center',
+                color: '#FFFFFF',
+                margin: 0,
+                padding: 0
+              }}
+            >
+              Round {currentRound}
+            </h2>
+            <p 
+              className="text-white"
+              style={{ 
+                fontFamily: 'MADE Gentle, sans-serif', 
+                fontSize: '24px',
+                textAlign: 'center',
+                color: '#FFFFFF',
+                marginTop: '4px',
+                marginBottom: 0,
+                padding: 0
+              }}
+            >
+              Vote best question
+            </p>
+          </div>
+
           <div className="bg-white rounded-xl p-6 mt-2">
             {!hasVoted ? (
               <>
-                <h3 className="text-xl font-semibold text-[#B96759] mb-2">Vote for Your Favorite Question!</h3>
                 {displayedQuestions.length > 0 ? (
                   <div className="space-y-3">
-                    {displayedQuestions.map((question) => (
-                      <button
-                        key={question.id}
-                        onClick={() => handleVote(question.id)}
-                        className="w-full py-3 px-2 rounded-lg bg-[#B96759] text-white font-bold text-left shadow hover:bg-[#98483A] transition"
-                      >
-                        <span className="block text-lg">{question.targetPlayer}, {formatQuestion(question.text)}</span>
-                      </button>
-                    ))}
+                    {displayedQuestions.map((question) => {
+                      // Find the question's original index in the full questions array
+                      const originalIndex = allQuestions.findIndex(q => q.id === question.id);
+                      const questionNumber = originalIndex !== -1 ? originalIndex + 1 : 0;
+                      
+                      return (
+                        <button
+                          key={question.id}
+                          onClick={() => handleVote(question.id)}
+                          className="w-full text-white font-bold text-left transition-all cursor-pointer"
+                          style={{
+                            border: 'none',
+                            outline: 'none',
+                            backgroundColor: '#B96759',
+                            borderRadius: '12px',
+                            padding: '8px 20px',
+                            fontFamily: 'MADE Gentle, sans-serif',
+                            fontSize: '32px',
+                            color: '#FFFFFF',
+                            boxShadow: 'none',
+                            transform: 'scale(1)',
+                            transition: 'all 0.2s ease'
+                          }}
+                          onMouseEnter={(e) => {
+                            e.currentTarget.style.backgroundColor = '#98483A';
+                            e.currentTarget.style.transform = 'scale(1.02)';
+                          }}
+                          onMouseLeave={(e) => {
+                            e.currentTarget.style.backgroundColor = '#B96759';
+                            e.currentTarget.style.transform = 'scale(1)';
+                          }}
+                        >
+                          Question {questionNumber}
+                        </button>
+                      );
+                    })}
                   </div>
                 ) : (
                   <p className="text-[#B96759]">No questions available to vote on</p>
@@ -613,12 +824,41 @@ function Player() {
   // Show join form if no stored data or user chose to join new game
   if (!joined && !isReconnecting) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <form onSubmit={handleJoin} className="flex flex-col items-center" style={{ width: '100%' }}>
-          <div className="w-full flex flex-col items-center">
+      <div 
+        className="flex justify-center bg-[#D67C6D]"
+        style={{
+          width: '100vw',
+          height: '100vh',
+          maxHeight: '100vh',
+          overflow: 'hidden',
+          padding: '16px',
+          paddingTop: '10vh',
+          boxSizing: 'border-box',
+          alignItems: 'flex-start'
+        }}
+      >
+        <form 
+          onSubmit={handleJoin} 
+          className="flex flex-col"
+          style={{
+            width: '85%',
+            maxHeight: '100%',
+            justifyContent: 'flex-start',
+            boxSizing: 'border-box',
+            padding: '20px',
+            borderRadius: '10px'
+          }}
+        >
+          {/* Name Input */}
+          <div className="flex flex-col" style={{ width: '100%' }}>
             <label
-              className="self-start"
-              style={{ fontFamily: 'MADE Gentle, sans-serif', fontSize: 32, marginLeft: '8vw' }}
+              className="font-bold mb-2"
+              style={{ 
+                fontFamily: 'MADE Gentle, sans-serif', 
+                fontSize: '32px',
+                textAlign: 'left',
+                color: '#FFFFFF'
+              }}
             >
               Name
             </label>
@@ -628,19 +868,34 @@ function Player() {
               onChange={(e) => setPlayerName(e.target.value)}
               placeholder=""
               maxLength={15}
-              className="mt-2"
+              className="bg-white text-[#B96759] focus:outline-none focus:ring-2 focus:ring-white transition-all"
               style={{
-                width: '50vw',
-                background: '#FFFFFF',
-                borderRadius: 15,
-                padding: '12px',
+                width: '100%',
+                maxWidth: '100%',
+                padding: '12px 10px',
+                borderRadius: '12px',
+                fontFamily: 'inherit',
+                fontSize: '18px',
+                border: 'none',
+                boxShadow: 'none',
+                WebkitAppearance: 'none',
+                MozAppearance: 'none',
+                appearance: 'none',
                 boxSizing: 'border-box'
               }}
             />
+          </div>
 
+          {/* Room Code Input */}
+          <div className="flex flex-col" style={{ marginTop: '28px', width: '100%' }}>
             <label
-              className="self-start"
-              style={{ fontFamily: 'MADE Gentle, sans-serif', fontSize: 32, marginLeft: '8vw', marginTop: 20 }}
+              className="font-bold mb-2"
+              style={{ 
+                fontFamily: 'MADE Gentle, sans-serif', 
+                fontSize: '32px',
+                textAlign: 'left',
+                color: '#FFFFFF'
+              }}
             >
               Code
             </label>
@@ -648,32 +903,50 @@ function Player() {
               type="text"
               value={roomCode}
               onChange={(e) => setRoomCode(e.target.value.toUpperCase())}
-              placeholder="Enter the room code"
+              placeholder=""
               maxLength={4}
-              className="mt-2"
+              className="bg-white text-[#B96759] uppercase focus:outline-none focus:ring-2 focus:ring-white transition-all"
               style={{
-                width: '50vw',
-                background: '#FFFFFF',
-                borderRadius: 15,
-                padding: '12px',
-                boxSizing: 'border-box',
-                textTransform: 'uppercase'
+                width: '100%',
+                maxWidth: '100%',
+                padding: '12px 10px',
+                borderRadius: '12px',
+                fontFamily: 'inherit',
+                fontSize: '18px',
+                border: 'none',
+                boxShadow: 'none',
+                WebkitAppearance: 'none',
+                MozAppearance: 'none',
+                appearance: 'none',
+                letterSpacing: '0.1em',
+                boxSizing: 'border-box'
               }}
             />
+          </div>
 
-            {error && <p className="text-red-500 mt-3">{error}</p>}
+          {/* Error Message */}
+          {error && (
+            <p className="text-white text-center text-sm bg-red-500/50 rounded-full px-4 py-2 mt-4">
+              {error}
+            </p>
+          )}
 
+          {/* Join Button */}
+          <div className="flex justify-center" style={{ marginTop: '28px' }}>
             <button
               type="submit"
-              className="mt-6"
+              className="bg-white rounded-full text-[#B96759] font-bold hover:bg-opacity-90 transition-all focus:outline-none focus:ring-2 focus:ring-white"
               style={{
-                width: '33.333vw',
-                borderRadius: 20,
-                fontFamily: 'Momentz, sans-serif',
-                fontSize: 20,
-                color: '#B96759',
-                background: 'white',
-                padding: '10px 0'
+                width: '50%',
+                minWidth: '80px',
+                paddingTop: '12px',
+                paddingBottom: '10px',
+                paddingLeft: '5px',
+                paddingRight: '5px',
+                fontFamily: 'Heyam, sans-serif',
+                fontSize: '24px',
+                border: 'none',
+                cursor: 'pointer'
               }}
             >
               Join

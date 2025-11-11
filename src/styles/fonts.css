@@ -1,15 +1,13 @@
 @font-face {
   font-family: 'Heyam';
-  src: url('/fonts/Heyam.woff2') format('woff2'),
-       url('/fonts/Heyam.woff') format('woff');
+  src: url('/fonts/Heyam.ttf') format('truetype');
   font-display: swap;
   font-weight: 400 700; /* Specify available weight range */
 }
 
 @font-face {
   font-family: 'MADE Gentle';
-  src: url('/fonts/MADEGentle.woff2') format('woff2'),
-       url('/fonts/MADEGentle.woff') format('woff');
+  src: url('/fonts/MADE Gentle PERSONAL USE.otf') format('opentype');
   font-display: swap;
   font-weight: 400 700;
 }
