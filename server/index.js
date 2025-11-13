@@ -50,6 +50,23 @@ io.on("connection", (socket) => {
   });
 
   socket.on("attempt_reconnect", ({ playerName, roomCode }) => {
+    // Validate player name
+    if (!playerName || !playerName.trim()) {
+        socket.emit("reconnect_failed", "Invalid player name");
+        return;
+    }
+    
+    if (playerName.length > MAX_NAME_LENGTH) {
+        socket.emit("reconnect_failed", "Name must be 15 characters or less");
+        return;
+    }
+    
+    // Check if name contains numbers
+    if (/\d/.test(playerName)) {
+        socket.emit("reconnect_failed", "Name cannot contain numbers");
+        return;
+    }
+    
     const room = rooms.get(roomCode);
     const playerScore = room?.scores[socket.id] || 0;
     console.log(`[Server] Reconnection attempt:`, { 
@@ -75,8 +92,41 @@ io.on("connection", (socket) => {
     }
 
     // Update the player's new socket ID
+    const oldSocketId = existingPlayer.id;
     existingPlayer.id = socket.id;
-    room.scores[socket.id] = room.scores[existingPlayer.id] || 0;
+    room.scores[socket.id] = room.scores[oldSocketId] || 0;
+    
+    // Clean up old socket ID from scores if it exists
+    if (oldSocketId !== socket.id && room.scores[oldSocketId]) {
+      delete room.scores[oldSocketId];
+    }
+    
+    // Update targetPlayer socket ID if it matches the reconnecting player
+    if (room.targetPlayer && room.targetPlayer.id === oldSocketId) {
+      room.targetPlayer.id = socket.id;
+      console.log(`[Server] Updated targetPlayer socket ID from ${oldSocketId} to ${socket.id}`);
+    }
+    
+    // Update questions with new socket ID FIRST - check by authorName (case-insensitive) to handle reconnections
+    // This must happen before checking hasSubmitted to ensure we catch duplicates
+    room.questions.forEach(q => {
+      if (q.authorId === oldSocketId || 
+          (q.authorName && q.authorName.toLowerCase() === playerName.toLowerCase())) {
+        q.authorId = socket.id;
+        // Ensure authorName is set correctly
+        if (!q.authorName || q.authorName.toLowerCase() !== playerName.toLowerCase()) {
+          q.authorName = playerName;
+        }
+      }
+    });
+    
+    // Update votes map with new socket ID (votes are stored by socket ID)
+    // IMPORTANT: Do this BEFORE checking hasVoted
+    if (oldSocketId !== socket.id && room.votes[oldSocketId]) {
+      room.votes[socket.id] = room.votes[oldSocketId];
+      delete room.votes[oldSocketId];
+      console.log(`[Server] Updated vote from old socket ${oldSocketId} to new socket ${socket.id}, vote: ${room.votes[socket.id]}`);
+    }
     
     // Join the socket to the room
     socket.join(roomCode);
@@ -84,16 +134,107 @@ io.on("connection", (socket) => {
     // Store the player data again
     playerData.set(socket.id, { playerName, roomCode });
 
+    // Check if player has already submitted a question for current round
+    // If we're past the question phase, they've definitely submitted
+    // If we're in question phase, check if their question exists (by player name, more reliable than socket ID)
+    // IMPORTANT: Check AFTER updating questions array above
+    let hasSubmitted = false;
+    const normalizedPlayerName = playerName.toLowerCase().trim();
+    
+    console.log(`[Server] ===== RECONNECT HASSUBMITTED CHECK =====`);
+    console.log(`[Server] Player: "${playerName}" (normalized: "${normalizedPlayerName}")`);
+    console.log(`[Server] Current Phase: ${room.currentPhase}`);
+    console.log(`[Server] Current Questions:`, room.questions.map(q => ({
+      authorName: q.authorName || 'MISSING',
+      normalizedAuthorName: q.authorName ? q.authorName.toLowerCase().trim() : 'MISSING',
+      authorId: q.authorId,
+      matches: q.authorName ? q.authorName.toLowerCase().trim() === normalizedPlayerName : false
+    })));
+    
+    if (room.currentPhase === 'voting' || room.currentPhase === 'guessing') {
+      hasSubmitted = true; // Past question phase means they submitted
+      console.log(`[Server] Phase is ${room.currentPhase}, setting hasSubmitted = true`);
+    } else if (room.currentPhase === 'question') {
+      // Check by player name (case-insensitive) - this is more reliable than socket ID
+      hasSubmitted = room.questions.some(q => {
+        if (!q.authorName) return false;
+        const normalizedAuthorName = q.authorName.toLowerCase().trim();
+        const matches = normalizedAuthorName === normalizedPlayerName;
+        if (matches) {
+          console.log(`[Server] FOUND MATCH: Question by "${q.authorName}" matches player "${playerName}"`);
+        }
+        return matches;
+      });
+      console.log(`[Server] Final hasSubmitted value: ${hasSubmitted}`);
+    }
+    console.log(`[Server] ==========================================`);
+
+    // Check if player has voted (for voting phase)
+    // IMPORTANT: Check AFTER updating votes map above
+    let hasVoted = false;
+    if (room.currentPhase === 'voting') {
+      // Check both new and old socket ID to be safe
+      hasVoted = !!(room.votes[socket.id] || (oldSocketId !== socket.id && room.votes[oldSocketId]));
+      console.log(`[Server] ===== VOTING PHASE RECONNECT CHECK =====`);
+      console.log(`[Server] Player: ${playerName}, Socket: ${socket.id}, Old Socket: ${oldSocketId}`);
+      console.log(`[Server] Votes map:`, room.votes);
+      console.log(`[Server] Vote for new socket (${socket.id}):`, room.votes[socket.id]);
+      console.log(`[Server] Vote for old socket (${oldSocketId}):`, oldSocketId !== socket.id ? room.votes[oldSocketId] : 'N/A');
+      console.log(`[Server] Final hasVoted: ${hasVoted}`);
+      console.log(`[Server] =========================================`);
+    }
+    
+    // Prepare voting questions if in voting phase
+    // Always send questions, even if player has already voted (needed for display)
+    let votingQuestions = null;
+    if (room.currentPhase === 'voting' && room.displayedQuestions && room.displayedQuestions.length > 0) {
+      // Filter out player's own question (displayedQuestions contains all questions, not filtered per player)
+      votingQuestions = room.displayedQuestions
+        .filter(q => q.authorId !== socket.id)
+        .map(q => ({
+          id: q.id,
+          text: q.text,
+          targetPlayer: q.targetPlayer,
+          authorId: q.authorId,
+          authorName: q.authorName
+        }));
+      console.log(`[Server] Sending voting questions to reconnected player:`, votingQuestions.length, 'questions (filtered from', room.displayedQuestions.length, 'total)');
+    } else if (room.currentPhase === 'voting') {
+      console.log(`[Server] WARNING: Voting phase but no displayedQuestions found!`);
+    }
+    
+    // Prepare selectedQuestion with authorId for guessing phase
+    let questionAuthorId = null;
+    if (room.currentPhase === 'guessing' && room.selectedQuestion) {
+      questionAuthorId = room.selectedQuestion.authorId;
+      console.log(`[Server] Guessing phase - Question authorId: ${questionAuthorId}, Player socket: ${socket.id}`);
+    }
+    
     // Send current game state to reconnected player
-    socket.emit("reconnect_success", {
+    const reconnectData = {
       gameState: room.gameState,
       currentRound: room.currentRound,
       currentPhase: room.currentPhase,
       players: room.players,
       scores: room.scores,
       selectedQuestion: room.selectedQuestion,
-      targetPlayer: room.targetPlayer
+      questionAuthorId: questionAuthorId, // Add authorId separately for easier access
+      targetPlayer: room.targetPlayer,
+      hasSubmitted: hasSubmitted,
+      hasVoted: hasVoted,
+      votingQuestions: votingQuestions
+    };
+    
+    console.log(`[Server] Sending reconnect_success to ${playerName}:`, {
+      ...reconnectData,
+      hasSubmitted: reconnectData.hasSubmitted,
+      hasVoted: reconnectData.hasVoted,
+      votingQuestionsCount: votingQuestions ? votingQuestions.length : 0,
+      players: reconnectData.players.map(p => ({ name: p.name, id: p.id })),
+      scores: reconnectData.scores
     });
+    
+    socket.emit("reconnect_success", reconnectData);
 
     // Notify other players
     socket.to(roomCode).emit("player_reconnected", {
@@ -137,9 +278,39 @@ io.on("connection", (socket) => {
         return;
     }
 
+    // Validate player name
+    if (!playerName || !playerName.trim()) {
+        socket.emit("join_error", "Please enter your name");
+        return;
+    }
+    
+    if (playerName.length > MAX_NAME_LENGTH) {
+        socket.emit("join_error", "Name must be 15 characters or less");
+        return;
+    }
+    
+    // Check if name contains numbers
+    if (/\d/.test(playerName)) {
+        socket.emit("join_error", "Name cannot contain numbers");
+        return;
+    }
+
     const room = rooms.get(roomCode);
     if (!room) {
         socket.emit("join_error", "Room not found");
+        return;
+    }
+
+    // Check for reconnection attempt FIRST (before checking game state)
+    // This allows disconnected players to reconnect even if game has started
+    const disconnectedPlayer = room.players.find(p => 
+        p.name.toLowerCase() === playerName.toLowerCase() && p.disconnected
+    );
+
+    // Prevent NEW players from joining after game has started
+    // Only allow reconnections
+    if (room.gameState !== "waiting" && !disconnectedPlayer) {
+        socket.emit("join_error", "Game has already started. New players cannot join.");
         return;
     }
 
@@ -148,6 +319,7 @@ io.on("connection", (socket) => {
     console.log('[Server] Active players:', activePlayers.length);
 
     // Check for duplicate names (excluding disconnected players)
+    // This prevents duplicate names among active players
     const duplicateName = activePlayers.some(p => 
         p.name.toLowerCase() === playerName.toLowerCase() && !p.disconnected
     );
@@ -156,11 +328,6 @@ io.on("connection", (socket) => {
         socket.emit("join_error", "Name already taken");
         return;
     }
-
-    // Check for reconnection attempt
-    const disconnectedPlayer = room.players.find(p => 
-        p.name.toLowerCase() === playerName.toLowerCase() && p.disconnected
-    );
 
     // Enforce player limit
     if (activePlayers.length >= MAX_PLAYERS && !disconnectedPlayer) {
@@ -270,9 +437,76 @@ io.on("connection", (socket) => {
     }
     
     const room = rooms.get(roomCode);
+    console.log(`[Server] ===== SUBMIT_QUESTION EVENT =====`);
+    console.log(`[Server] Room exists: ${!!room}, Phase: ${room?.currentPhase}`);
+    
     if (room && room.currentPhase === "question") {
-      const playerName = room.players.find(p => p.id === socket.id)?.name;
+      // Find player by socket ID first
+      let playerName = room.players.find(p => p.id === socket.id)?.name;
+      console.log(`[Server] Initial playerName lookup by socket ID ${socket.id}: ${playerName || 'NOT FOUND'}`);
+      
+      // If player not found by socket ID, try to find by checking if this socket just reconnected
+      // This handles race condition where submit_question arrives before attempt_reconnect completes
+      if (!playerName) {
+        // Check if there's a player data entry for this socket
+        const playerDataEntry = playerData.get(socket.id);
+        if (playerDataEntry) {
+          // Find player by name from playerData
+          const playerByName = room.players.find(p => 
+            p.name.toLowerCase() === playerDataEntry.playerName.toLowerCase()
+          );
+          if (playerByName) {
+            // Update the player's socket ID immediately
+            playerByName.id = socket.id;
+            playerName = playerByName.name;
+            console.log(`[Server] Updated player socket ID during submit_question: ${playerName} -> ${socket.id}`);
+          }
+        }
+      }
+      
+      if (!playerName) {
+        console.log(`[Server] Player not found for socket ${socket.id} in room ${roomCode}`);
+        socket.emit("question_error", "Player not found in room");
+        return;
+      }
+      
       const targetPlayerName = room.players.find(p => p.id === targetPlayer)?.name;
+      
+      // CRITICAL: Check if this player has already submitted a question for this round
+      // Check by player name (case-insensitive) to handle reconnections
+      // Update any questions with matching authorName to use current socket ID
+      const normalizedPlayerName = playerName.toLowerCase().trim();
+      let alreadySubmitted = false;
+      
+      for (const q of room.questions) {
+        if (q.authorName) {
+          const normalizedAuthorName = q.authorName.toLowerCase().trim();
+          if (normalizedAuthorName === normalizedPlayerName) {
+            // Found a question by this player - update socket ID and mark as duplicate
+            q.authorId = socket.id;
+            alreadySubmitted = true;
+            break;
+          }
+        }
+      }
+      
+      console.log(`[Server] ===== DUPLICATE CHECK =====`);
+      console.log(`[Server] Player: "${playerName}" (normalized: "${normalizedPlayerName}")`);
+      console.log(`[Server] Socket ID: ${socket.id}`);
+      console.log(`[Server] Already Submitted: ${alreadySubmitted}`);
+      console.log(`[Server] Questions in room:`, room.questions.map(q => ({
+        authorName: q.authorName || 'MISSING',
+        normalizedAuthorName: q.authorName ? q.authorName.toLowerCase().trim() : 'MISSING',
+        authorId: q.authorId,
+        text: q.text ? q.text.substring(0, 30) + '...' : 'MISSING'
+      })));
+      console.log(`[Server] ==========================`);
+      
+      if (alreadySubmitted) {
+        console.log(`[Server] *** REJECTING DUPLICATE SUBMISSION ***`);
+        socket.emit("question_error", "You have already submitted a question for this round");
+        return;
+      }
       
       // Debug log 1: Initial receipt of question
       console.log('=== Question Submission Debug ===');

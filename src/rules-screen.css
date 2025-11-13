@@ -23,7 +23,7 @@
   max-width: 600px;     /* Prevent it from getting too wide on large screens */
   min-width: 300px;     /* Prevent it from getting too narrow on small screens */
   border-radius: 2rem;
-  padding: 0 3rem 1rem 3rem;  /* Increased side padding from 1rem to 2rem */
+  padding: 0 3rem 2.6rem 3rem;  /* Increased bottom padding for button spacing */
   box-shadow: 0 20px 25px -5px rgb(0 0 0 / 0.1);
   display: flex;
   flex-direction: column;
@@ -37,7 +37,7 @@
   .rules-box {
     width: 90vw;        /* Nearly full width on mobile */
     height: 65vh;       /* Slightly taller on mobile for better readability */
-    padding: 0 2rem 1.5rem 2rem;  /* Slightly less padding on mobile */
+    padding: 0 2rem 1.5rem 2rem;  /* Slightly less padding on mobile, but keep bottom padding */
   }
 }
 
@@ -58,30 +58,22 @@
 
 .rules-content {
   font-family: 'MADE Gentle', sans-serif;
-  font-size: 1.1rem;          /* Text font size */
+  /* Dynamic font size that scales with viewport height to fill container */
+  /* Min: 0.9375rem (15px), Preferred: 2.3vh (scales with viewport), Max: 1.25rem (20px) */
+  font-size: clamp(0.9375rem, 2.3vh, 1.25rem);
   font-weight: 100;           /* Added thinner font weight */
-  line-height: 1.2;           /* Line spacing (multiply by font-size) */
+  /* Line height scales proportionally with font-size (unitless value multiplies font-size) */
+  /* Since font-size is dynamic, line-height automatically scales with it */
+  line-height: 1.35;
   flex-grow: 1;
   overflow-y: auto;
   padding-right: 1rem;
   letter-spacing: 0.08em;     /* Text letter spacing */
-}
-
-@media (min-width: 768px) {
-  .rules-content {
-    font-size: 1rem;          /* Text font size on tablets */
-  }
-}
-
-@media (min-width: 1024px) {
-  .rules-content {
-    font-size: 1.125rem;      /* Text font size on desktop */
-  }
+  margin-bottom: 0.5rem;      /* Small spacing before button */
 }
 
 .rules-button {
   font-family: 'Heyam', sans-serif;
-  margin-top: 2rem;
   padding: 0.75rem 2rem;
   font-size: 1.25rem;
   font-weight: 600;
@@ -92,8 +84,10 @@
   transition: all 0.2s;
   margin-left: auto;
   margin-right: auto;
+  margin-top: 0;        /* No top margin - spacing comes from content margin-bottom */
   text-transform: uppercase;
   letter-spacing: 0.05em;
+  flex-shrink: 0;       /* Prevent button from shrinking */
 }
 
 .rules-button:hover {
@@ -101,10 +95,15 @@
   transform: scale(1.05);
 }
 
-@media (min-width: 768px) {
-  .rules-button {
-    margin-top: 1.5rem;
-  }
+/* Reduce paragraph margins inside rules-content */
+.rules-content p {
+  margin-top: 0.4em;     /* Reduced from default 1em */
+  margin-bottom: 0.4em;  /* Reduced from default 1em */
+}
+
+/* Reduce top margin on first paragraph */
+.rules-content p:first-child {
+  margin-top: 0;         /* No top margin for first paragraph */
 }
 
 /* Custom scrollbar */
@@ -133,7 +132,7 @@
 .rules-content ol li {
   position: relative;
   margin-bottom: 0.75rem;  /* Reduced spacing between items */
-  line-height: 1.4;  /* Tighter line height */
+  line-height: 1.2;  /* Tighter line height */
   padding-left: 0.5rem;  /* Slight indent for text */
 }
 

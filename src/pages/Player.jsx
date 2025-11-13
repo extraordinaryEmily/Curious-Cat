@@ -1,10 +1,11 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { 
   socket, 
   connectSocket,  // Add this import
   storePlayerData, 
   clearPlayerData 
 } from '../socket';
+import { sanitizeForDisplay } from '../utils/sanitize';
 // Custom mobile-friendly styles for Player screens
 
 function Player() {
@@ -36,19 +37,22 @@ function Player() {
   const [hasStoredData, setHasStoredData] = useState(false);
   const [storedRoom, setStoredRoom] = useState('');
   const [storedName, setStoredName] = useState('');
+  const timeoutRef = useRef(null);
 
   useEffect(() => {
     console.log("[Player] Component mounted");
 
-    socket.on('join_error', (errorMessage) => {
-      console.error('[Player] Join error:', errorMessage);
-      setError(errorMessage);
-      setJoined(false);
-      setJoinStatus('Failed to join: ' + errorMessage);
-    });
-
     socket.on('join_success', () => {
       console.log('[Player] Successfully joined room:', roomCode);
+      // Read from localStorage to ensure we have the latest values
+      try {
+        const savedRoom = localStorage.getItem('roomCode');
+        const savedName = localStorage.getItem('playerName');
+        if (savedRoom && !roomCode) setRoomCode(savedRoom);
+        if (savedName && !playerName) setPlayerName(savedName);
+      } catch (error) {
+        console.error('Error reading localStorage:', error);
+      }
       setError('');
       setJoined(true);
       setJoinStatus('You\'re in! Waiting for game to start');
@@ -120,15 +124,21 @@ function Player() {
 
       // If this player is answering
       if (targetPlayer.id === socket.id) {
-        setTimeout(() => {
+        // Clear any existing timeout
+        if (timeoutRef.current) {
+          clearTimeout(timeoutRef.current);
+        }
+        
+        timeoutRef.current = setTimeout(() => {
           if (!isOwnQuestion) {
             // If it's their own question, show the "You wrote this!" message after 10s
             setShowGuessPrompt(true);
           } else {
             // If it's someone else's question, show the guess prompt after 30s
-            setTimeout(() => {
+            const innerTimeout = setTimeout(() => {
               setShowGuessPrompt(true);
             }, 10000);
+            timeoutRef.current = innerTimeout;
           }
         }, 10000);
       }
@@ -151,6 +161,7 @@ function Player() {
       setCurrentRound(round);
       setTargetPlayer(targetPlayer);
       setHasSubmitted(false);
+      setHasVoted(false);  // Reset voting state for new round
       setQuestion('');
       setSelectedTarget('');
       setError(null);
@@ -159,6 +170,8 @@ function Player() {
       setShowPlayerSelection(false);   // Reset player selection
       setShowGuessPrompt(false);      // Reset guess prompt
       setGuessedPlayer('');           // Reset guessed player
+      setIsAnswering(false);  // Reset answering state (will be recalculated in guessing_phase)
+      setSelectedQuestion(null);  // Clear previous question
 
       // Log state after clearing
       console.log('Player State After Clear:', {
@@ -179,18 +192,77 @@ function Player() {
 
     socket.on('reconnect_success', (gameState) => {
       console.log('[Player] Reconnected successfully', gameState);
+      console.log('[Player] hasSubmitted from server:', gameState.hasSubmitted);
+      console.log('[Player] hasVoted from server:', gameState.hasVoted);
+      console.log('[Player] currentPhase:', gameState.currentPhase);
+      console.log('[Player] gameState:', gameState.gameState);
+      // Read from localStorage to ensure we have the latest values
+      try {
+        const savedRoom = localStorage.getItem('roomCode');
+        const savedName = localStorage.getItem('playerName');
+        if (savedRoom) setRoomCode(savedRoom);
+        if (savedName) setPlayerName(savedName);
+      } catch (error) {
+        console.error('Error reading localStorage:', error);
+      }
       setJoined(true);
-      setGameState(gameState.gameState);
+      
+      // Set game state based on current phase
+      if (gameState.currentPhase === 'voting') {
+        setGameState('voting');
+        // Set voting questions if provided (always set them, even if already voted)
+        if (gameState.votingQuestions) {
+          setAllQuestions(gameState.votingQuestions);
+          const filteredQuestions = gameState.votingQuestions.filter(q => q.authorId !== socket.id);
+          setDisplayedQuestions(filteredQuestions);
+        }
+      } else if (gameState.currentPhase === 'guessing') {
+        setGameState('guessing');
+        // Restore guessing phase state
+        if (gameState.selectedQuestion) {
+          setSelectedQuestion(gameState.selectedQuestion);
+        }
+        if (gameState.targetPlayer) {
+          setTargetPlayer(gameState.targetPlayer);
+          // Calculate if this player is answering
+          const isAnsweringPlayer = gameState.targetPlayer.id === socket.id;
+          setIsAnswering(isAnsweringPlayer);
+          console.log('[Player] Reconnect - isAnswering:', isAnsweringPlayer, 'targetPlayer.id:', gameState.targetPlayer.id, 'socket.id:', socket.id);
+          
+          // Check if it's their own question
+          if (gameState.questionAuthorId) {
+            const isOwnQuestion = gameState.questionAuthorId === socket.id;
+            setIsOwnQuestion(isOwnQuestion);
+            console.log('[Player] Reconnect - isOwnQuestion:', isOwnQuestion, 'questionAuthorId:', gameState.questionAuthorId);
+          }
+        }
+      } else if (gameState.currentPhase === 'question') {
+        setGameState('playing');
+      } else {
+        setGameState(gameState.gameState);
+      }
+      
       setCurrentRound(gameState.currentRound);
       setPlayers(gameState.players);
-      // ... update other relevant state ...
-      setIsReconnecting(false);
-    });
-
-    socket.on('reconnect_failed', (error) => {
-      console.log('[Player] Reconnection failed:', error);
-      clearPlayerData();
-      setError(error);
+      
+      // Restore hasSubmitted state if provided by server
+      if (gameState.hasSubmitted !== undefined) {
+        console.log('[Player] Setting hasSubmitted to:', gameState.hasSubmitted);
+        setHasSubmitted(gameState.hasSubmitted);
+      } else {
+        console.log('[Player] WARNING: hasSubmitted not provided by server!');
+      }
+      
+      // Restore hasVoted state if provided by server
+      if (gameState.hasVoted !== undefined) {
+        console.log('[Player] Setting hasVoted to:', gameState.hasVoted);
+        setHasVoted(gameState.hasVoted);
+      }
+      
+      // Set joinStatus if game hasn't started yet
+      if (gameState.gameState === 'waiting') {
+        setJoinStatus('You\'re in! Waiting for game to start');
+      }
       setIsReconnecting(false);
     });
 
@@ -213,10 +285,19 @@ function Player() {
       setSelectedQuestion(gameData.selectedQuestion);
       setDisplayedQuestions(gameData.displayedQuestions || []);
       
-      // Set appropriate phase-specific states
-      if (gameData.currentPhase === 'question') {
-        setHasSubmitted(false);
-      } else if (gameData.currentPhase === 'voting') {
+      // Restore hasSubmitted state if provided by server
+      if (gameData.hasSubmitted !== undefined) {
+        setHasSubmitted(gameData.hasSubmitted);
+      } else {
+        // Fallback: Set appropriate phase-specific states
+        if (gameData.currentPhase === 'question') {
+          setHasSubmitted(false);
+        } else if (gameData.currentPhase === 'voting' || gameData.currentPhase === 'guessing') {
+          setHasSubmitted(true); // Past question phase means they submitted
+        }
+      }
+      
+      if (gameData.currentPhase === 'voting') {
         setHasVoted(false);
       }
     });
@@ -237,9 +318,17 @@ function Player() {
       setError(error);
     });
 
+    socket.on('question_error', (error) => {
+      console.log('[Player] Question error:', error);
+      setError(error);
+      // Reset hasSubmitted if server rejected the submission
+      setHasSubmitted(false);
+    });
+
     return () => {
       console.log("[Player] Component unmounting");
       socket.off('join_error');
+      socket.off('question_error');
       socket.off('join_success');
       socket.off('player_joined');
       socket.off('game_started');
@@ -253,31 +342,55 @@ function Player() {
       socket.off('player_reconnected');
       socket.off('rejoin_game_in_progress');
       socket.off('reconnect_failed');
-      socket.off('join_error');
+      
+      // Clear any pending timeouts
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current);
+        timeoutRef.current = null;
+      }
     };
   }, [roomCode, isAnswering]);
 
   const handleJoin = async (e) => {
     e.preventDefault();
-    if (!roomCode.trim()) {
+    const trimmedRoomCode = roomCode.trim().toUpperCase();
+    const trimmedPlayerName = playerName.trim();
+    
+    // Room code validation
+    if (!trimmedRoomCode) {
       setError('Please enter a room code');
       return;
     }
-    if (!playerName.trim()) {
+    if (trimmedRoomCode.length !== 4) {
+      setError('Room code must be exactly 4 characters');
+      return;
+    }
+    if (!/^[A-Z]{4}$/.test(trimmedRoomCode)) {
+      setError('Room code must contain only letters');
+      return;
+    }
+    
+    // Name validation (matches server MAX_NAME_LENGTH = 15)
+    if (!trimmedPlayerName) {
       setError('Please enter your name');
       return;
     }
-    if (playerName.length > 15) {
+    if (trimmedPlayerName.length > 15) {
       setError('Name must be 15 characters or less');
+      return;
+    }
+    // Check if name contains numbers
+    if (/\d/.test(trimmedPlayerName)) {
+      setError('Name cannot contain numbers');
       return;
     }
 
     try {
       await connectSocket();
-      storePlayerData(playerName.trim(), roomCode.toUpperCase());
+      storePlayerData(trimmedPlayerName, trimmedRoomCode);
       socket.emit('join_room', { 
-        roomCode: roomCode.toUpperCase(), 
-        playerName: playerName.trim() 
+        roomCode: trimmedRoomCode, 
+        playerName: trimmedPlayerName 
       });
     } catch (error) {
       setError('Failed to connect to server');
@@ -286,12 +399,19 @@ function Player() {
 
   const handleSubmitQuestion = (e) => {
     e.preventDefault();
+    
+    // Prevent duplicate submissions
+    if (hasSubmitted) {
+      setError('You have already submitted a question for this round');
+      return;
+    }
+    
     if (!question.trim() || !selectedTarget) {
       setError('Please fill in both the question and select a target player');
       return;
     }
-    if (question.length > 120) {
-      setError('Question must be 120 characters or less');
+    if (question.length > 150) {
+      setError('Question must be 150 characters or less');
       return;
     }
 
@@ -314,9 +434,9 @@ function Player() {
       <div 
         className="flex justify-center bg-[#D67C6D]"
         style={{
-          width: '100vw',
-          height: '100vh',
-          maxHeight: '100vh',
+          width: '100dvw',
+          height: '100dvh',
+          maxHeight: '100dvh',
           overflow: 'hidden',
           padding: '16px',
           paddingTop: '10vh',
@@ -382,7 +502,7 @@ function Player() {
                 value={question}
                 onChange={(e) => setQuestion(e.target.value)}
                 placeholder=""
-                maxLength={120}
+                maxLength={150}
                 className="bg-white text-[#B96759] focus:outline-none focus:ring-2 focus:ring-white transition-all resize-none"
                 style={{
                   width: '100%',
@@ -402,7 +522,7 @@ function Player() {
                   overflowWrap: 'break-word'
                 }}
               />
-              <span className="block text-right text-xs mt-1" style={{ color: '#FFFFFF', fontFamily: 'MADE Gentle, sans-serif' }}>{question.length}/120</span>
+              <span className="block text-right text-xs mt-1" style={{ color: '#FFFFFF', fontFamily: 'MADE Gentle, sans-serif' }}>{question.length}/150</span>
             </div>
 
             {/* Responder Dropdown */}
@@ -445,7 +565,7 @@ function Player() {
                 >
                   <option value="">Select a player...</option>
                   {availablePlayers.map(player => (
-                    <option key={player.id} value={player.id}>{player.name}</option>
+                    <option key={player.id} value={player.id}>{sanitizeForDisplay(player.name)}</option>
                   ))}
                 </select>
               </div>
@@ -462,7 +582,8 @@ function Player() {
             <div className="flex justify-center" style={{ marginTop: '28px' }}>
               <button
                 type="submit"
-                className="bg-white rounded-full text-[#B96759] font-bold hover:bg-opacity-90 transition-all focus:outline-none focus:ring-2 focus:ring-white"
+                disabled={hasSubmitted}
+                className="bg-white rounded-full text-[#B96759] font-bold hover:bg-opacity-90 transition-all focus:outline-none focus:ring-2 focus:ring-white disabled:opacity-50 disabled:cursor-not-allowed"
                 style={{
                   width: '50%',
                   minWidth: '80px',
@@ -473,7 +594,8 @@ function Player() {
                   fontFamily: 'Heyam, sans-serif',
                   fontSize: '24px',
                   border: 'none',
-                  cursor: 'pointer'
+                  cursor: hasSubmitted ? 'not-allowed' : 'pointer',
+                  opacity: hasSubmitted ? 0.5 : 1
                 }}
               >
                 Submit
@@ -510,9 +632,9 @@ function Player() {
       <div 
         className="flex justify-center bg-[#D67C6D]"
         style={{
-          width: '100vw',
-          height: '100vh',
-          maxHeight: '100vh',
+          width: '100dvw',
+          height: '100dvh',
+          maxHeight: '100dvh',
           overflow: 'hidden',
           padding: '16px',
           paddingTop: '10vh',
@@ -608,9 +730,9 @@ function Player() {
       <div 
         className="flex justify-center bg-[#D67C6D]"
         style={{
-          width: '100vw',
-          height: '100vh',
-          maxHeight: '100vh',
+          width: '100dvw',
+          height: '100dvh',
+          maxHeight: '100dvh',
           overflow: 'hidden',
           padding: '16px',
           paddingTop: '10vh',
@@ -804,9 +926,9 @@ function Player() {
       <div 
         className="flex justify-center bg-[#D67C6D]"
         style={{
-          width: '100vw',
-          height: '100vh',
-          maxHeight: '100vh',
+          width: '100dvw',
+          height: '100dvh',
+          maxHeight: '100dvh',
           overflow: 'hidden',
           padding: '16px',
           paddingTop: '10vh',
@@ -995,7 +1117,7 @@ function Player() {
                           .filter(player => player.id !== socket.id)
                           .map(player => (
                             <option key={player.id} value={player.id}>
-                              {player.name}
+                              {sanitizeForDisplay(player.name)}
                             </option>
                           ))
                         }
@@ -1054,9 +1176,9 @@ function Player() {
       <div 
         className="flex justify-center bg-[#D67C6D]"
         style={{
-          width: '100vw',
-          height: '100vh',
-          maxHeight: '100vh',
+          width: '100dvw',
+          height: '100dvh',
+          maxHeight: '100dvh',
           overflow: 'hidden',
           padding: '16px',
           paddingTop: '10vh',
@@ -1106,13 +1228,18 @@ function Player() {
 
   useEffect(() => {
     // Check for stored data on mount
-    const savedName = localStorage.getItem('playerName');
-    const savedRoom = localStorage.getItem('roomCode');
-    
-    if (savedName && savedRoom) {
-      setHasStoredData(true);
-      setStoredRoom(savedRoom);
-      setStoredName(savedName);
+    try {
+      const savedName = localStorage.getItem('playerName');
+      const savedRoom = localStorage.getItem('roomCode');
+      
+      if (savedName && savedRoom) {
+        setHasStoredData(true);
+        setStoredRoom(savedRoom);
+        setStoredName(savedName);
+      }
+    } catch (error) {
+      console.error('Error accessing localStorage:', error);
+      // Continue without stored data
     }
   }, []);
 
@@ -1122,9 +1249,9 @@ function Player() {
       <div 
         className="flex justify-center bg-[#D67C6D]"
         style={{
-          width: '100vw',
-          height: '100vh',
-          maxHeight: '100vh',
+          width: '100dvw',
+          height: '100dvh',
+          maxHeight: '100dvh',
           overflow: 'hidden',
           padding: '16px',
           paddingTop: '10vh',
@@ -1185,13 +1312,23 @@ function Player() {
           </div>
           <div className="flex flex-col" style={{ gap: '16px' }}>
             <button
-              onClick={() => {
+              onClick={async () => {
                 setIsReconnecting(true);
-                connectSocket();
-                socket.emit('attempt_reconnect', {
-                  playerName: storedName,
-                  roomCode: storedRoom
-                });
+                // Set roomCode and playerName from stored values so they display correctly
+                setRoomCode(storedRoom);
+                setPlayerName(storedName);
+                // Set joinStatus so it shows immediately when waiting lobby appears
+                setJoinStatus('You\'re in! Waiting for game to start');
+                try {
+                  await connectSocket();
+                  socket.emit('attempt_reconnect', {
+                    playerName: storedName,
+                    roomCode: storedRoom
+                  });
+                } catch (error) {
+                  setError('Failed to connect to server');
+                  setIsReconnecting(false);
+                }
               }}
               className="bg-white rounded-full text-[#B96759] font-bold hover:bg-opacity-90 transition-all focus:outline-none focus:ring-2 focus:ring-white"
               style={{
@@ -1257,9 +1394,9 @@ function Player() {
       <div 
         className="flex justify-center bg-[#D67C6D]"
         style={{
-          width: '100vw',
-          height: '100vh',
-          maxHeight: '100vh',
+          width: '100dvw',
+          height: '100dvh',
+          maxHeight: '100dvh',
           overflow: 'hidden',
           padding: '16px',
           paddingTop: '10vh',
@@ -1410,9 +1547,9 @@ function Player() {
       <div 
         className="flex justify-center bg-[#D67C6D]"
         style={{
-          width: '100vw',
-          height: '100vh',
-          maxHeight: '100vh',
+          width: '100dvw',
+          height: '100dvh',
+          maxHeight: '100dvh',
           overflow: 'hidden',
           padding: '16px',
           paddingTop: '10vh',
@@ -1471,7 +1608,7 @@ function Player() {
                 marginBottom: '8px'
               }}
             >
-              Room Code: <span style={{ fontFamily: 'MADE Gentle, sans-serif', fontWeight: 'bold' }}>{roomCode}</span>
+              Room Code: <span style={{ fontFamily: 'MADE Gentle, sans-serif', fontWeight: 'bold' }}>{sanitizeForDisplay(roomCode)}</span>
             </p>
             <p 
               style={{ 
@@ -1480,7 +1617,7 @@ function Player() {
                 color: '#FFFFFF'
               }}
             >
-              Your Name: <span style={{ fontWeight: 'bold' }}>{playerName}</span>
+              Your Name: <span style={{ fontWeight: 'bold' }}>{sanitizeForDisplay(playerName)}</span>
             </p>
           </div>
         </div>
@@ -1494,9 +1631,9 @@ function Player() {
       <div 
         className="flex justify-center bg-[#D67C6D]"
         style={{
-          width: '100vw',
-          height: '100vh',
-          maxHeight: '100vh',
+          width: '100dvw',
+          height: '100dvh',
+          maxHeight: '100dvh',
           overflow: 'hidden',
           padding: '16px',
           paddingTop: '10vh',

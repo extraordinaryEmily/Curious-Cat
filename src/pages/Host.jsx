@@ -5,6 +5,7 @@ import '../rules-screen.css';
 import '../styles/host-setup.css';
 import logoImage from '../LOGO.png';
 import { socket, connectSocket } from '../socket';
+import { sanitizeForDisplay } from '../utils/sanitize';
 
 function Host() {
   const [roomCode, setRoomCode] = useState(null);
@@ -182,7 +183,11 @@ function Host() {
     try {
       setIsCreatingRoom(true);
       await connectSocket(true);
-      localStorage.setItem('numberOfRounds', numberOfRounds);
+      try {
+        localStorage.setItem('numberOfRounds', numberOfRounds);
+      } catch (error) {
+        console.error('Error storing numberOfRounds to localStorage:', error);
+      }
       socket.emit('create_room', { numberOfRounds });
     } catch (error) {
       console.error('[Host] Failed to create room:', error);
@@ -207,7 +212,7 @@ function Host() {
                 <div className="player-list-content">
                   {players.map(player => (
                     <div key={player.id} className="player-name">
-                      {player.name}
+                      {sanitizeForDisplay(player.name)}
                     </div>
                   ))}
                 </div>
@@ -283,7 +288,7 @@ function Host() {
                   }`}
                   style={{ fontFamily: 'MADE Gentle, sans-serif' }}
                 >
-                  <span className="text-lg">{player.name}</span>
+                  <span className="text-lg">{sanitizeForDisplay(player.name)}</span>
                   {submittedPlayers.has(player.name) && (
                     <span className="text-2xl ml-2">✓</span>
                   )}
@@ -319,7 +324,7 @@ function Host() {
               {displayedQuestions.map((question, index) => (
                 <div key={question.id} className="bg-gray-700 p-4 rounded-lg flex items-center" style={{ fontFamily: 'MADE Gentle, sans-serif' }}>
                   <p className="text-xl mb-0 font-bold">
-                    Question {index + 1}: <span className="text-lg font-normal">{question.targetPlayer}, {formatQuestion(question.text)}</span>
+                    Question {index + 1}: <span className="text-lg font-normal">{sanitizeForDisplay(question.targetPlayer)}, {sanitizeForDisplay(formatQuestion(question.text))}</span>
                   </p>
                 </div>
               ))}
@@ -373,7 +378,7 @@ function Host() {
                     WebkitBoxOrient: 'vertical'
                   }}
                 >
-                  {addQuotations(`${typeof targetPlayer === 'string' ? targetPlayer : targetPlayer.name}, ${formatQuestion(selectedQuestion)}`)}
+                  {sanitizeForDisplay(addQuotations(`${typeof targetPlayer === 'string' ? targetPlayer : targetPlayer.name}, ${formatQuestion(selectedQuestion)}`))}
                 </p>
               </div>
             )}
@@ -428,7 +433,7 @@ function Host() {
                 >
                   <div className="flex items-center">
                     <span className="text-2xl font-bold mr-4">#{index + 1}</span>
-                    <span className="text-xl">{player.name}</span>
+                    <span className="text-xl">{sanitizeForDisplay(player.name)}</span>
                   </div>
                   <span className="text-xl font-bold">{player.score} points</span>
                 </div>
@@ -475,10 +480,10 @@ function Host() {
               
               <ol>
                 <li>Create a room and share the code with your friends</li>
-                <li>Each round, players submit questions about other players</li>
+                <li>Submit questions about other players each round</li>
                 <li>Everyone votes on their favorite questions</li>
                 <li>Selected players must answer truthfully</li>
-                <li>Points are awarded for good questions and correct guesses</li>
+                <li>Earn points for good questions and correct guesses</li>
               </ol>
               
               <p>Stay curious, be kind. The goal is to have fun <i>and</i> learn something new about each other.</p>

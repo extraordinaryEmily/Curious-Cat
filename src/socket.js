@@ -37,30 +37,42 @@ export const connectSocket = (isHost = false) => {
 };
 
 export const storePlayerData = (playerName, roomCode) => {
-    localStorage.setItem('playerName', playerName);
-    localStorage.setItem('roomCode', roomCode);
+    try {
+        localStorage.setItem('playerName', playerName);
+        localStorage.setItem('roomCode', roomCode);
+    } catch (error) {
+        console.error('Error storing player data to localStorage:', error);
+    }
 };
 
 export const clearPlayerData = () => {
-    localStorage.removeItem('playerName');
-    localStorage.removeItem('roomCode');
-    localStorage.removeItem('attemptReconnect');
+    try {
+        localStorage.removeItem('playerName');
+        localStorage.removeItem('roomCode');
+        localStorage.removeItem('attemptReconnect');
+    } catch (error) {
+        console.error('Error clearing player data from localStorage:', error);
+    }
 };
 
 socket.on('connect', () => {
     console.log('Connected to server');
     
     // Only attempt reconnection if explicitly requested
-    const shouldReconnect = localStorage.getItem('attemptReconnect');
-    if (shouldReconnect) {
-        const playerName = localStorage.getItem('playerName');
-        const roomCode = localStorage.getItem('roomCode');
-        
-        if (playerName && roomCode) {
-            console.log('Attempting to reconnect with stored data');
-            socket.emit('attempt_reconnect', { playerName, roomCode });
+    try {
+        const shouldReconnect = localStorage.getItem('attemptReconnect');
+        if (shouldReconnect) {
+            const playerName = localStorage.getItem('playerName');
+            const roomCode = localStorage.getItem('roomCode');
+            
+            if (playerName && roomCode) {
+                console.log('Attempting to reconnect with stored data');
+                socket.emit('attempt_reconnect', { playerName, roomCode });
+            }
+            localStorage.removeItem('attemptReconnect');
         }
-        localStorage.removeItem('attemptReconnect');
+    } catch (error) {
+        console.error('Error accessing localStorage for reconnection:', error);
     }
 });
 

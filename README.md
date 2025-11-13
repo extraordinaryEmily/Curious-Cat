@@ -95,20 +95,9 @@ Notes & troubleshooting
 ## Things to note as Cursor warns
 
 ### Socket & State Management
-- **Duplicate socket event listeners**: `Player.jsx` has duplicate `socket.off('join_error')` calls in cleanup (lines 242 and 256) - ensure all event listeners are properly cleaned up to prevent memory leaks
 - **Socket event listener dependencies**: The `useEffect` in `Player.jsx` depends on `[roomCode, isAnswering]` but uses many socket events - be careful when modifying dependencies as missing dependencies can cause stale closures
 - **State synchronization**: Server state (`room.gameState`, `room.currentPhase`) must stay in sync with client state - race conditions can occur if multiple players act simultaneously
 - **Reconnection complexity**: Reconnection logic involves multiple state updates and localStorage operations - test thoroughly as state can become inconsistent if reconnection happens mid-game
-
-### Memory Leaks & Cleanup
-- **setTimeout not cleared**: In `Player.jsx` lines 123-129, nested `setTimeout` calls are used but not stored/cleared - if component unmounts before timeout fires, this can cause memory leaks and state updates on unmounted components
-- **Socket cleanup**: Ensure all socket event listeners added in `useEffect` are removed in cleanup function - missing cleanup can cause duplicate handlers and unexpected behavior
-
-### Input Validation & Security
-- **Client-side validation mismatch**: Client validates question length at 120 chars (`Player.jsx` line 293) but server validates at 150 chars (`server/index.js` line 35) - this inconsistency can cause confusion
-- **Name validation**: Server checks `MAX_NAME_LENGTH` (15) but ensure client validation matches exactly
-- **Special characters**: No sanitization visible for XSS prevention in user inputs (names, questions) - consider sanitizing before displaying
-- **Room code validation**: Room codes are generated server-side but ensure they're validated on client before use
 
 ### Race Conditions & Concurrency
 - **Simultaneous submissions**: Multiple players submitting questions/votes at the same time can cause race conditions - server handles this but ensure UI doesn't show stale state
@@ -116,16 +105,14 @@ Notes & troubleshooting
 - **Score updates**: Score updates happen asynchronously - ensure scores are properly synchronized when players reconnect
 
 ### Mobile-Specific Issues
-- **Viewport height**: Using `100vh` can cause issues on mobile browsers due to address bar - consider using `dvh` (dynamic viewport height) or JavaScript-based height calculation
 - **Touch events**: No explicit touch event handling - ensure buttons/inputs work well on mobile (adequate touch targets, no accidental double-taps)
 - **Keyboard behavior**: Mobile keyboards can resize viewport - ensure UI adapts properly when keyboard appears/disappears
 - **Scrolling prevention**: `overflow: hidden` is set globally in `index.css` - ensure this doesn't break functionality on pages that need scrolling
 
 ### CSS & Responsive Design
-- **Hardcoded viewport units**: Many `vh`, `vw` units used - test on various screen sizes as these can cause layout issues
-- **Font loading**: Custom fonts (MADE Gentle, Heyam) loaded via CSS - ensure fallbacks work if fonts fail to load
-- **Color contrast**: Verify white text on `#D67C6D` background meets accessibility standards
-- **Container width**: Using percentage widths (`85%`, `66.666%`) - ensure these work well across all device sizes
+- **Viewport units on mobile**: Using `100vh` can cause issues on mobile browsers when the address bar appears/disappears - content might be cut off or create scroll issues. **Suggestion**: Replace `100vh` with `100dvh` (dynamic viewport height) in `index.css` and all component styles. `dvh` adjusts for mobile browser UI, providing a better mobile experience. This is a simple find-replace change that would improve mobile usability.
+- **Color contrast**: White text (`#FFFFFF`) on `#D67C6D` background has a contrast ratio of approximately 3.2:1, which meets WCAG AA standards for large text (18pt+) but may not meet AA for smaller text (needs 4.5:1). **Suggestion**: If accessibility becomes important, consider slightly darkening the background to `#C56A5A` or `#B85A4A` to improve contrast for smaller text while maintaining the design aesthetic.
+- **Font fallbacks**: Custom fonts (MADE Gentle, Heyam) already have `sans-serif` fallback specified in all `fontFamily` declarations, so browsers will automatically use default system fonts if custom fonts fail to load - this is working correctly ✅
 
 ### Error Handling
 - **Network failures**: Socket connection errors are logged but user feedback could be improved - consider showing user-friendly error messages
@@ -134,10 +121,10 @@ Notes & troubleshooting
 
 ### Data Persistence
 - **localStorage usage**: Multiple components use localStorage for reconnection - ensure data is cleared appropriately to prevent stale data
-- **localStorage quota**: No error handling for localStorage quota exceeded - add try-catch around localStorage operations
 
 ### Game Logic Edge Cases
-- **Empty questions array**: If all questions are filtered out (e.g., only 1 player), voting phase might break
+- **Empty questions array**: If all questions are filtered out during voting phase (e.g., only 1 player or all questions belong to the same player), `displayedQuestions` will be empty and voting UI will show "No questions available" - handle this edge case gracefully
 - **Player count**: Minimum player count not enforced - game might break with < 2 players
-- **Round transitions**: Ensure all state is properly reset between rounds - previous round data can leak into new round
+- **Round transitions**: Most states are reset in `new_round` handler, but verify all edge cases are covered
 - **Game end conditions**: Final round and game end logic needs thorough testing - ensure scores are finalized correctly
+- **Voting with single question**: If only one question remains after filtering, player has no choice - consider handling this case differently
