@@ -30,9 +30,21 @@ const playerData = new Map(); // stores player name and room code
 // Add this to store original players for each room
 const originalPlayers = new Map();
 
-const MAX_PLAYERS = 10;
-const MAX_NAME_LENGTH = 15;
-const MAX_QUESTION_LENGTH = 150;  // Changed from 200 to 150
+const MAX_PLAYERS = 8;
+const MAX_NAME_LENGTH = 10;
+const MAX_QUESTION_LENGTH = 150;  // keep at 150 for now
+
+// Load default questions for auto-fill and "Give me a question"
+const path = require('path');
+let defaultQuestions = [
+  'What is your favorite color?'
+];
+try {
+  const dq = require(path.join(__dirname, '..', 'src', 'data', 'defaultQuestions.json'));
+  if (Array.isArray(dq) && dq.length) defaultQuestions = dq;
+} catch (err) {
+  console.log('[Server] Could not load defaultQuestions.json, using fallback', err.message);
+}
 
 io.on("connection", (socket) => {
   console.log(`[Server] New socket connection: ${socket.id}`);
@@ -57,7 +69,7 @@ io.on("connection", (socket) => {
     }
     
     if (playerName.length > MAX_NAME_LENGTH) {
-        socket.emit("reconnect_failed", "Name must be 15 characters or less");
+        socket.emit("reconnect_failed", "Name must be 10 characters or less");
         return;
     }
     
@@ -188,15 +200,13 @@ io.on("connection", (socket) => {
     // Always send questions, even if player has already voted (needed for display)
     let votingQuestions = null;
     if (room.currentPhase === 'voting' && room.displayedQuestions && room.displayedQuestions.length > 0) {
-      // Filter out player's own question (displayedQuestions contains all questions, not filtered per player)
+      // Provide filtered questions for the reconnecting player (no author info)
       votingQuestions = room.displayedQuestions
         .filter(q => q.authorId !== socket.id)
         .map(q => ({
           id: q.id,
           text: q.text,
-          targetPlayer: q.targetPlayer,
-          authorId: q.authorId,
-          authorName: q.authorName
+          targetPlayer: q.targetPlayer
         }));
       console.log(`[Server] Sending voting questions to reconnected player:`, votingQuestions.length, 'questions (filtered from', room.displayedQuestions.length, 'total)');
     } else if (room.currentPhase === 'voting') {
@@ -259,7 +269,16 @@ io.on("connection", (socket) => {
       votes: {},
       scores: {},
       selectedPlayer: null,
-      displayedQuestions: []
+      displayedQuestions: [],
+      // timers and stats
+      submissionTimer: null,
+      submissionTimerEnd: null,
+      votingTimer: null,
+      votingTimerEnd: null,
+      questionLengths: {}, // { authorId: { totalLength, count } }
+      snoopCounts: {}, // { playerId: count }
+      displayedQuestionOccurrences: {}, // { questionId: count }
+      autoCloseTimer: null
     };
     
     rooms.set(roomCode, newRoom);
@@ -285,7 +304,7 @@ io.on("connection", (socket) => {
     }
     
     if (playerName.length > MAX_NAME_LENGTH) {
-        socket.emit("join_error", "Name must be 15 characters or less");
+        socket.emit("join_error", "Name must be 10 characters or less");
         return;
     }
     
@@ -331,7 +350,7 @@ io.on("connection", (socket) => {
 
     // Enforce player limit
     if (activePlayers.length >= MAX_PLAYERS && !disconnectedPlayer) {
-        socket.emit("join_error", "Room is full (max 10 players)");
+        socket.emit("join_error", "Room is full (max 8 players)");
         return;
     }
 
@@ -429,7 +448,7 @@ io.on("connection", (socket) => {
     }
   });
 
-  socket.on("submit_question", ({ roomCode, question, targetPlayer, authorId }) => {
+  socket.on("submit_question", ({ roomCode, question, targetPlayer, authorId, isDefault }) => {
     // Add length validation
     if (question.length > MAX_QUESTION_LENGTH) {
       socket.emit("question_error", "Question must be 150 characters or less");
@@ -524,13 +543,86 @@ io.on("connection", (socket) => {
         text: question,
         authorId: socket.id,  // Ensure we're setting authorId here
         authorName: playerName,
-        targetPlayer: targetPlayerName
+        targetPlayer: targetPlayerName,
+        isDefault: !!isDefault
       };
       
       // Debug log 2: Question object creation
       console.log('2. Created question object:', newQuestion);
       
       room.questions.push(newQuestion);
+
+      // If there was a submission timer running, cancel it because we now have a new submission
+      if (room.submissionTimer && room.questions.length === room.players.length) {
+        clearTimeout(room.submissionTimer);
+        room.submissionTimer = null;
+        room.submissionTimerEnd = null;
+        io.to(roomCode).emit('submission_countdown_canceled');
+      }
+
+      // Track question lengths for bonuses
+      try {
+        const len = (question || '').trim().length;
+        room.questionLengths[socket.id] = room.questionLengths[socket.id] || { totalLength: 0, count: 0 };
+        room.questionLengths[socket.id].totalLength += len;
+        room.questionLengths[socket.id].count += 1;
+      } catch (err) {
+        console.log('[Server] Error tracking question length', err.message);
+      }
+
+      // If we reached half of players and no submission timer, start 60s countdown
+      const half = Math.ceil(room.players.length / 2);
+      if (room.questions.length >= half && !room.submissionTimer && room.currentPhase === 'question') {
+        const end = Date.now() + 60000; // 60s
+        room.submissionTimerEnd = end;
+        io.to(roomCode).emit('submission_countdown_started', { endTime: end });
+        room.submissionTimer = setTimeout(() => {
+          // Auto-fill missing players with default questions
+          const missingPlayers = room.players.filter(p => !room.questions.some(q => q.authorId === p.id));
+          missingPlayers.forEach(p => {
+            const dq = defaultQuestions[Math.floor(Math.random() * defaultQuestions.length)];
+            const randomTarget = room.players.filter(pp => pp.id !== p.id)[Math.floor(Math.random() * Math.max(1, room.players.length - 1))];
+            const dqObj = {
+              id: uuidv4(),
+              text: dq,
+              authorId: p.id,
+              authorName: p.name,
+              targetPlayer: randomTarget ? randomTarget.name : null,
+              isDefault: true
+            };
+            room.questions.push(dqObj);
+            // track length
+            room.questionLengths[p.id] = room.questionLengths[p.id] || { totalLength: 0, count: 0 };
+            room.questionLengths[p.id].totalLength += (dq || '').trim().length;
+            room.questionLengths[p.id].count += 1;
+            io.to(roomCode).emit('question_submitted', { playerName: p.name, autoFilled: true });
+          });
+
+          room.submissionTimer = null;
+          room.submissionTimerEnd = null;
+
+          // proceed to voting if all questions present
+          if (room.questions.length === room.players.length) {
+            room.currentPhase = 'voting';
+            let questionsToDisplay = room.questions;
+            if (room.questions.length > 6) {
+              questionsToDisplay = room.questions
+                .sort(() => Math.random() - 0.5)
+                .slice(0, 6);
+            }
+            room.displayedQuestions = questionsToDisplay;
+            // increment displayed occurrences
+            questionsToDisplay.forEach(q => {
+              room.displayedQuestionOccurrences[q.id] = (room.displayedQuestionOccurrences[q.id] || 0) + 1;
+            });
+            // start voting timer (60s)
+            const votingEnd = Date.now() + 60000;
+            room.votingTimerEnd = votingEnd;
+            io.to(roomCode).emit('voting_phase', { questions: questionsToDisplay.map(q => ({ id: q.id, text: q.text, targetPlayer: q.targetPlayer })), votingEnd });
+            room.votingTimer = setTimeout(() => finalizeVoting(roomCode), 60000);
+          }
+        }, 60000);
+      }
 
       // Debug log 3: After adding to room.questions
       console.log('3. Room questions array:', room.questions);
@@ -539,35 +631,30 @@ io.on("connection", (socket) => {
 
       if (room.questions.length === room.players.length) {
         room.currentPhase = "voting";
-        
+
         let questionsToDisplay = room.questions;
         if (room.questions.length > 6) {
           questionsToDisplay = room.questions
             .sort(() => Math.random() - 0.5)
             .slice(0, 6);
         }
-        
+
         room.displayedQuestions = questionsToDisplay;
-        
-        // Debug log 4: Questions being prepared for sending
-        console.log('4. Questions being prepared for voting phase:');
-        const mappedQuestions = questionsToDisplay.map(q => {
-          const mapped = {
-            id: q.id,
-            text: q.text,
-            targetPlayer: q.targetPlayer,
-            authorId: q.authorId,
-            authorName: q.authorName
-          };
-          console.log('Mapped question:', mapped);
-          return mapped;
+
+        // increment displayed occurrences for bonus tracking
+        questionsToDisplay.forEach(q => {
+          room.displayedQuestionOccurrences[q.id] = (room.displayedQuestionOccurrences[q.id] || 0) + 1;
         });
 
-        // Debug log 5: Final emission
-        console.log('5. Final emission payload:', { questions: mappedQuestions });
-        console.log('===========================');
-        
-        io.to(roomCode).emit("voting_phase", { questions: mappedQuestions });
+        // Prepare anonymized questions for the clients (no author info)
+        const payloadQuestions = questionsToDisplay.map(q => ({ id: q.id, text: q.text, targetPlayer: q.targetPlayer }));
+
+        // Start voting timer (60s)
+        const votingEnd = Date.now() + 60000;
+        room.votingTimerEnd = votingEnd;
+        room.votingTimer = setTimeout(() => finalizeVoting(roomCode), 60000);
+
+        io.to(roomCode).emit("voting_phase", { questions: payloadQuestions, votingEnd });
       }
     }
   });
@@ -577,7 +664,7 @@ io.on("connection", (socket) => {
     const room = rooms.get(roomCode);
     if (room && Array.isArray(questions)) {
       // Filter out the player's own question before sending
-      const filteredQuestions = questions.filter(q => q.authorId !== socket.id);
+      const filteredQuestions = questions.filter(q => q.authorId !== socket.id).map(q => ({ id: q.id, text: q.text, targetPlayer: q.targetPlayer }));
       socket.emit("voting_phase", { questions: filteredQuestions });
     }
   });
@@ -593,56 +680,89 @@ io.on("connection", (socket) => {
 
       room.votes[socket.id] = questionId;
 
-      // Find the author of the voted question and award them a point
+      // Find the author of the voted question
       const votedQuestion = room.questions.find(q => q.id === questionId);
       if (votedQuestion) {
-        room.scores[votedQuestion.authorId] = (room.scores[votedQuestion.authorId] || 0) + 1;
-        
-        // Update player scores immediately
-        room.players = room.players.map(player => ({
-          ...player,
-          score: room.scores[player.id] || 0
-        }));
-        
-        // Emit updated scores along with vote count
+        // If the voted question was a default question, do NOT award +1 at vote time.
+        if (!votedQuestion.isDefault) {
+          room.scores[votedQuestion.authorId] = (room.scores[votedQuestion.authorId] || 0) + 1;
+
+          // Update player scores immediately
+          room.players = room.players.map(player => ({
+            ...player,
+            score: room.scores[player.id] || 0
+          }));
+        }
+
+        // Emit updated votes count and current players scores (scores may not include default-vote points yet)
         io.to(roomCode).emit("vote_received", { 
           votesCount: Object.keys(room.votes).length,
           players: room.players 
         });
       }
 
+      // If all votes in or voting timer will finalize, finalize now
       if (Object.keys(room.votes).length === room.players.length) {
-        // Count votes and find winning question(s)
-        const voteCount = {};
-        Object.values(room.votes).forEach(id => {
-          voteCount[id] = (voteCount[id] || 0) + 1;
-        });
-        
-        const maxVotes = Math.max(...Object.values(voteCount));
-        const winningQuestionIds = Object.entries(voteCount)
-          .filter(([, votes]) => votes === maxVotes)
-          .map(([id]) => id);
-        
-        const randomWinningId = winningQuestionIds[Math.floor(Math.random() * winningQuestionIds.length)];
-        room.selectedQuestion = room.questions.find(q => q.id === randomWinningId);
-        room.currentPhase = "guessing";
-
-        // Add these debug logs
-        console.log("Selected question:", room.selectedQuestion);
-        console.log("Target player name:", room.selectedQuestion.targetPlayer);
-        
-        // Find the full player object
-        const targetPlayerObj = room.players.find(p => p.name === room.selectedQuestion.targetPlayer);
-        console.log("Found target player object:", targetPlayerObj); // Add this log
-
-        io.to(roomCode).emit("guessing_phase", {
-          question: room.selectedQuestion.text,
-          targetPlayer: targetPlayerObj,
-          authorId: room.selectedQuestion.authorId
-        });
+        // Clear any voting timer
+        if (room.votingTimer) {
+          clearTimeout(room.votingTimer);
+          room.votingTimer = null;
+          room.votingTimerEnd = null;
+        }
+        finalizeVoting(roomCode);
       }
     }
   });
+
+  // Finalize voting (can be called by vote count or timer)
+  function finalizeVoting(roomCode) {
+    const room = rooms.get(roomCode);
+    if (!room || room.currentPhase !== 'voting') return;
+
+    // Count votes and find winning question(s)
+    const voteCount = {};
+    Object.values(room.votes).forEach(id => {
+      voteCount[id] = (voteCount[id] || 0) + 1;
+    });
+
+    // if there are no votes at all, pick a random displayed question
+    let randomWinningId;
+    if (Object.keys(voteCount).length === 0) {
+      const pool = room.displayedQuestions.length ? room.displayedQuestions : room.questions;
+      randomWinningId = pool[Math.floor(Math.random() * pool.length)].id;
+    } else {
+      const maxVotes = Math.max(...Object.values(voteCount));
+      const winningQuestionIds = Object.entries(voteCount)
+        .filter(([, votes]) => votes === maxVotes)
+        .map(([id]) => id);
+      randomWinningId = winningQuestionIds[Math.floor(Math.random() * winningQuestionIds.length)];
+    }
+
+    room.selectedQuestion = room.questions.find(q => q.id === randomWinningId);
+    room.currentPhase = 'guessing';
+
+    // If the winning question was a default question, award its author the votes now
+    const winningQ = room.selectedQuestion;
+    if (winningQ && winningQ.isDefault) {
+      const votesForWinning = voteCount[winningQ.id] || 0;
+      if (votesForWinning > 0) {
+        room.scores[winningQ.authorId] = (room.scores[winningQ.authorId] || 0) + votesForWinning;
+        room.players = room.players.map(player => ({
+          ...player,
+          score: room.scores[player.id] || 0
+        }));
+      }
+    }
+
+    // Find the full player object for target
+    const targetPlayerObj = room.players.find(p => p.name === room.selectedQuestion.targetPlayer);
+
+    io.to(roomCode).emit('guessing_phase', {
+      question: room.selectedQuestion.text,
+      targetPlayer: targetPlayerObj,
+      authorId: room.selectedQuestion.authorId
+    });
+  }
 
   socket.on("make_guess", ({ roomCode, guessedPlayerId }) => {
     console.log('=== Make Guess Debug ===');
@@ -675,13 +795,17 @@ io.on("connection", (socket) => {
         }
 
         // Update scores based on guess result
-        if (correct) {
-            // Answerer gets 5 points for correct guess
-            updatedRoom.scores[socket.id] = (updatedRoom.scores[socket.id] || 0) + 5;
-        } else {
-            // Question author gets 2 points if answerer guesses wrong
-            updatedRoom.scores[questionData.authorId] = (updatedRoom.scores[questionData.authorId] || 0) + 2;
-        }
+    if (correct) {
+      // Answerer gets 5 points for correct guess
+      updatedRoom.scores[socket.id] = (updatedRoom.scores[socket.id] || 0) + 5;
+      // track snoop count
+      updatedRoom.snoopCounts[socket.id] = (updatedRoom.snoopCounts[socket.id] || 0) + 1;
+    } else {
+      // Question author gets 3 points if answerer guesses wrong (competitive)
+      updatedRoom.scores[questionData.authorId] = (updatedRoom.scores[questionData.authorId] || 0) + 3;
+      // track snoop attempt
+      updatedRoom.snoopCounts[socket.id] = (updatedRoom.snoopCounts[socket.id] || 0) + 1;
+    }
 
         // Update player scores
         updatedRoom.players = updatedRoom.players.map(player => ({
@@ -737,10 +861,25 @@ io.on("connection", (socket) => {
 
         if (updatedRoom.currentRound >= updatedRoom.numberOfRounds) {
           updatedRoom.gameState = "finished";
+          // Compute end-of-game bonuses
+          const bonusResults = computeEndGameBonuses(updatedRoom);
+          // Apply bonuses
+          bonusResults.forEach(b => {
+            updatedRoom.scores[b.playerId] = (updatedRoom.scores[b.playerId] || 0) + b.amount;
+          });
+          // Update player score objects
+          updatedRoom.players = updatedRoom.players.map(player => ({ ...player, score: updatedRoom.scores[player.id] || 0 }));
           io.to(roomCode).emit("game_ended", {
             players: updatedRoom.players,
-            finalScores: updatedRoom.scores
+            finalScores: updatedRoom.scores,
+            bonuses: bonusResults
           });
+
+          // Auto-close room after 5 minutes
+          updatedRoom.autoCloseTimer = setTimeout(() => {
+            io.to(roomCode).emit('room_closed', 'Room closed due to inactivity');
+            rooms.delete(roomCode);
+          }, 5 * 60 * 1000);
         } else {
           // Start next round without modifying scores
           updatedRoom.currentRound++;
@@ -762,6 +901,41 @@ io.on("connection", (socket) => {
       }, 7000);
     }
   });
+
+  // Helper: compute end of game bonuses
+  function computeEndGameBonuses(room) {
+    const results = [];
+    // 1) Longest average question length (+3)
+    const avgLengths = Object.entries(room.questionLengths || {}).map(([playerId, v]) => ({ playerId, avg: v.count ? v.totalLength / v.count : 0 }));
+    if (avgLengths.length) {
+      const maxAvg = Math.max(...avgLengths.map(p => p.avg));
+      const winners = avgLengths.filter(p => p.avg === maxAvg);
+      if (winners.length === 1) results.push({ type: 'longest_avg_question', playerId: winners[0].playerId, amount: 3 });
+    }
+
+    // 2) Most snoops (+3) - unique winner only
+    const snoops = Object.entries(room.snoopCounts || {}).map(([playerId, count]) => ({ playerId, count }));
+    if (snoops.length) {
+      const maxS = Math.max(...snoops.map(s => s.count));
+      const winners = snoops.filter(s => s.count === maxS);
+      if (winners.length === 1) results.push({ type: 'most_snoops', playerId: winners[0].playerId, amount: 3 });
+    }
+
+    // 3) Question shown the most (+4) - unique winner only
+    const occ = room.displayedQuestionOccurrences || {};
+    const occEntries = Object.entries(occ).map(([qid, count]) => ({ qid, count }));
+    if (occEntries.length) {
+      const maxOcc = Math.max(...occEntries.map(o => o.count));
+      const winners = occEntries.filter(o => o.count === maxOcc);
+      if (winners.length === 1) {
+        const qid = winners[0].qid;
+        const q = room.questions.find(x => x.id === qid) || {};
+        if (q.authorId) results.push({ type: 'most_shown_question', playerId: q.authorId, amount: 4, questionId: qid });
+      }
+    }
+
+    return results;
+  }
 
   socket.on('player_choice', ({ roomCode, choice }) => {
     console.log('Player choice received:', choice); // Debug log

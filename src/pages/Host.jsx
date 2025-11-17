@@ -24,6 +24,8 @@ function Host() {
   const [showLoading, setShowLoading] = useState(true);
   const [showRules, setShowRules] = useState(false);
   const [showGameSetup, setShowGameSetup] = useState(false);  // New state
+  const [finalScores, setFinalScores] = useState(null);
+  const [bonuses, setBonuses] = useState([]);
 
   useEffect(() => {
     const loadingTimer = setTimeout(() => {
@@ -107,9 +109,16 @@ function Host() {
       });
     });
 
-    socket.on('game_ended', ({ players, finalScores }) => {
+    socket.on('game_ended', ({ players, finalScores, bonuses }) => {
       setGameState('finished');
       setPlayers(players);
+      setFinalScores(finalScores || null);
+      if (bonuses) setBonuses(bonuses);
+    });
+
+    socket.on('room_closed', (msg) => {
+      setGameState('closed');
+      console.log('Room closed by server:', msg);
     });
 
     socket.on('question_submitted', ({ playerName }) => {
@@ -440,6 +449,18 @@ function Host() {
               ))}
             </div>
           </div>
+
+          {/* Bonuses Breakdown */}
+          {bonuses && bonuses.length > 0 && (
+            <div className="mt-6 bg-gray-700 p-4 rounded-lg">
+              <h3 className="text-2xl mb-2">Bonuses</h3>
+              <ul>
+                {bonuses.map((b, i) => (
+                  <li key={i}>{b.type} — {b.amount} pts to {players.find(p => p.id === b.playerId)?.name || b.playerId}</li>
+                ))}
+              </ul>
+            </div>
+          )}
 
           {/* Play Again Button */}
           <button 

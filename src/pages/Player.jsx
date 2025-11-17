@@ -5,6 +5,7 @@ import {
   storePlayerData, 
   clearPlayerData 
 } from '../socket';
+import defaultQuestions from '../data/defaultQuestions.json';
 import { sanitizeForDisplay } from '../utils/sanitize';
 // Custom mobile-friendly styles for Player screens
 
@@ -18,6 +19,7 @@ function Player() {
   const [currentRound, setCurrentRound] = useState(0);
   const [players, setPlayers] = useState([]);
   const [question, setQuestion] = useState('');
+  const [isDefaultQuestion, setIsDefaultQuestion] = useState(false);
   const [selectedTarget, setSelectedTarget] = useState('');
   const [hasSubmitted, setHasSubmitted] = useState(false);
   const [displayedQuestions, setDisplayedQuestions] = useState([]);
@@ -38,6 +40,9 @@ function Player() {
   const [storedRoom, setStoredRoom] = useState('');
   const [storedName, setStoredName] = useState('');
   const timeoutRef = useRef(null);
+  const [submissionEnd, setSubmissionEnd] = useState(null);
+  const [votingEnd, setVotingEnd] = useState(null);
+  const [gameEndData, setGameEndData] = useState(null);
 
   useEffect(() => {
     console.log("[Player] Component mounted");
@@ -71,13 +76,14 @@ function Player() {
     });
 
     socket.on('voting_phase', ({ questions }) => {
+      // handle optional voting end timestamp
       setGameState('voting');
       console.log('=== Voting Phase Debug ===');
       console.log('All questions received:', questions);
       console.log('Current socket ID:', socket.id);
       
       // Store original questions array for correct numbering
-      setAllQuestions(questions);
+  setAllQuestions(questions);
       
       // Filter out the player's own question
       const filteredQuestions = questions.filter(question => {
@@ -94,6 +100,30 @@ function Player() {
       console.log('========================');
       setDisplayedQuestions(filteredQuestions);
       setHasVoted(false);
+    });
+
+    socket.on('submission_countdown_started', ({ endTime }) => {
+      setSubmissionEnd(endTime);
+    });
+
+    socket.on('submission_countdown_canceled', () => {
+      setSubmissionEnd(null);
+    });
+
+    socket.on('voting_phase', ({ questions, votingEnd }) => {
+      // server may include votingEnd timestamp
+      if (votingEnd) setVotingEnd(votingEnd);
+    });
+
+    socket.on('game_ended', ({ players, finalScores, bonuses }) => {
+      setGameState('finished');
+      setPlayers(players);
+      setGameEndData({ finalScores, bonuses });
+    });
+
+    socket.on('room_closed', (msg) => {
+      setGameState('closed');
+      setError(msg || 'Room closed');
     });
 
     socket.on('guessing_phase', ({ question, targetPlayer, authorId }) => {
@@ -161,6 +191,7 @@ function Player() {
       setCurrentRound(round);
       setTargetPlayer(targetPlayer);
       setHasSubmitted(false);
+  setIsDefaultQuestion(false);
       setHasVoted(false);  // Reset voting state for new round
       setQuestion('');
       setSelectedTarget('');
@@ -323,6 +354,7 @@ function Player() {
       setError(error);
       // Reset hasSubmitted if server rejected the submission
       setHasSubmitted(false);
+      setIsDefaultQuestion(false);
     });
 
     return () => {
@@ -370,7 +402,7 @@ function Player() {
       return;
     }
     
-    // Name validation (matches server MAX_NAME_LENGTH = 15)
+    // Name validation (matches server MAX_NAME_LENGTH = 10)
     if (!trimmedPlayerName) {
       setError('Please enter your name');
       return;
@@ -419,7 +451,8 @@ function Player() {
       roomCode,
       question: question.trim(),
       targetPlayer: selectedTarget,
-      authorId: socket.id
+      authorId: socket.id,
+      isDefault: !!isDefaultQuestion
     });
     setHasSubmitted(true);
   };
@@ -453,6 +486,11 @@ function Player() {
           }}
         >
           {/* Header Container */}
+          {submissionEnd && !hasSubmitted && (
+            <div style={{ marginBottom: '12px', color: '#FFFFFF', textAlign: 'center' }}>
+              <SubmissionCountdown endTime={submissionEnd} />
+            </div>
+          )}
           <div className="flex flex-col items-center" style={{ marginBottom: '16px' }}>
             <h2 
               className="text-white font-bold"
@@ -504,6 +542,7 @@ function Player() {
                 placeholder=""
                 maxLength={150}
                 className="bg-white text-[#B96759] focus:outline-none focus:ring-2 focus:ring-white transition-all resize-none"
+                readOnly={isDefaultQuestion}
                 style={{
                   width: '100%',
                   maxWidth: '100%',
@@ -523,6 +562,24 @@ function Player() {
                 }}
               />
               <span className="block text-right text-xs mt-1" style={{ color: '#FFFFFF', fontFamily: 'MADE Gentle, sans-serif' }}>{question.length}/150</span>
+            </div>
+
+            <div style={{ display: 'flex', gap: '8px', marginBottom: '12px' }}>
+              <button
+                type="button"
+                onClick={() => {
+                  const dq = defaultQuestions[Math.floor(Math.random() * defaultQuestions.length)];
+                  setQuestion(dq);
+                  setIsDefaultQuestion(true);
+                }}
+                className="bg-white rounded-full text-[#B96759] font-bold hover:bg-opacity-90 transition-all focus:outline-none focus:ring-2 focus:ring-white"
+                style={{ padding: '8px 12px' }}
+              >
+                Give me a question
+              </button>
+              {isDefaultQuestion && (
+                <div style={{ alignSelf: 'center', color: '#FFFFFF' }}>Default question locked</div>
+              )}
             </div>
 
             {/* Responder Dropdown */}
@@ -605,6 +662,16 @@ function Player() {
         </div>
       </div>
     );
+  };
+
+  const SubmissionCountdown = ({ endTime }) => {
+    const [, force] = useState(0);
+    useEffect(() => {
+      const iv = setInterval(() => force(n => n + 1), 500);
+      return () => clearInterval(iv);
+    }, []);
+    const remaining = Math.max(0, Math.ceil((endTime - Date.now()) / 1000));
+    return <div>Submission auto-fill in: <strong>{remaining}s</strong></div>;
   };
 
   const renderWaitingForOthers = () => {
@@ -708,6 +775,16 @@ function Player() {
       return trimmedText.endsWith('?') ? trimmedText : `${trimmedText}?`;
     };
 
+    const VotingCountdown = ({ endTime }) => {
+      const [, force] = useState(0);
+      useEffect(() => {
+        const iv = setInterval(() => force(n => n + 1), 500);
+        return () => clearInterval(iv);
+      }, []);
+      const remaining = Math.max(0, Math.ceil((endTime - Date.now()) / 1000));
+      return <div style={{ color: '#FFFFFF', marginBottom: '8px' }}>Voting ends in: <strong>{remaining}s</strong></div>;
+    };
+
     // Animated ellipses component
     const AnimatedEllipses = () => {
       const [dots, setDots] = useState('.');
@@ -793,6 +870,7 @@ function Player() {
                 Waiting for others to vote<AnimatedEllipses />
               </p>
             )}
+            {votingEnd && !hasVoted && <VotingCountdown endTime={votingEnd} />}
           </div>
 
           {!hasVoted && (
@@ -1221,6 +1299,99 @@ function Player() {
           >
             Please look at the main screen
           </p>
+        </div>
+      </div>
+    );
+  };
+
+  const renderGameOver = () => {
+    if (gameState !== 'finished' || !gameEndData) return null;
+    
+    const { finalScores, bonuses } = gameEndData;
+    const sortedPlayers = [...players].sort((a, b) => b.score - a.score);
+    const winner = sortedPlayers[0];
+
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center px-4 bg-[#D67C6D]">
+        <div className="text-center max-w-4xl w-full">
+          <h1 className="text-6xl mb-8 text-yellow-500 font-bold">Game Over!</h1>
+
+          {/* Winner Section */}
+          <div className="mb-12">
+            <div className="bg-yellow-800 p-8 rounded-lg mb-8">
+              <h2 className="text-3xl mb-2 text-white">Winner</h2>
+              <p className="text-4xl font-bold text-yellow-400">{sanitizeForDisplay(winner?.name || 'N/A')}</p>
+              <p className="text-2xl text-yellow-300">{winner?.score || 0} points</p>
+            </div>
+          </div>
+
+          {/* All Players Scoreboard */}
+          <div className="bg-gray-800 p-8 rounded-lg mb-8">
+            <h2 className="text-3xl mb-6 text-white">Final Scoreboard</h2>
+            <div className="space-y-4 max-w-2xl mx-auto">
+              {sortedPlayers.map((player, index) => (
+                <div 
+                  key={player.id} 
+                  className={`p-6 rounded-lg flex items-center justify-between ${
+                    index === 0 ? 'bg-yellow-800/50' : 'bg-gray-700'
+                  }`}
+                >
+                  <div className="flex items-center">
+                    <span className="text-2xl font-bold mr-4">#{index + 1}</span>
+                    <span className="text-xl text-white">{sanitizeForDisplay(player.name)}</span>
+                  </div>
+                  <span className="text-xl font-bold text-yellow-400">{player.score} points</span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Bonuses Breakdown */}
+          {bonuses && bonuses.length > 0 && (
+            <div className="bg-gray-700 p-6 rounded-lg mb-8">
+              <h3 className="text-2xl mb-4 text-white">Bonuses Awarded</h3>
+              <ul className="text-left space-y-2">
+                {bonuses.map((b, i) => {
+                  const bonusPlayer = players.find(p => p.id === b.playerId);
+                  const bonusName = b.type.replace(/_/g, ' ').charAt(0).toUpperCase() + b.type.replace(/_/g, ' ').slice(1);
+                  return (
+                    <li key={i} className="text-lg text-yellow-300">
+                      <strong>{bonusName}</strong>: +{b.amount} pts to <strong>{sanitizeForDisplay(bonusPlayer?.name || 'N/A')}</strong>
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
+          )}
+
+          {/* Play Again Button */}
+          <button 
+            onClick={() => window.location.reload()}
+            className="mt-8 bg-green-600 px-8 py-4 rounded-lg text-xl font-bold hover:bg-green-700 transition text-white"
+          >
+            Play Again
+          </button>
+        </div>
+      </div>
+    );
+  };
+
+  const renderRoomClosed = () => {
+    if (gameState !== 'closed') return null;
+    
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center px-4 bg-[#D67C6D]">
+        <div className="text-center max-w-2xl w-full">
+          <h1 className="text-5xl mb-6 text-red-500 font-bold">Room Closed</h1>
+          <p className="text-2xl text-white mb-8">
+            {error || 'The room has been closed due to inactivity (5 minutes after game ended).'}
+          </p>
+          <button 
+            onClick={() => window.location.reload()}
+            className="bg-blue-600 px-8 py-4 rounded-lg text-xl font-bold hover:bg-blue-700 transition text-white"
+          >
+            Return to Home
+          </button>
         </div>
       </div>
     );
@@ -1683,6 +1854,13 @@ function Player() {
 
   return (
     <div className="min-h-screen">
+      {/* Room Closed - highest priority */}
+      {renderRoomClosed()}
+      
+      {/* Game Over - next priority */}
+      {renderGameOver()}
+      
+      {/* Normal Game Flow */}
       <div className="p-4 sm:p-6 md:p-8 lg:p-12">
         {!joined ? (
           <div className="p-8">

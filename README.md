@@ -26,6 +26,7 @@ This is a test project for Cursor AI. It is a simple trivia game where players c
 - Phone vs desktop; reload warning
 - Duplicate names
 - Host pages are kinda broken
+- When game almost done dev, change min players to 4
 
 ## How to run (dev)
 
