@@ -43,6 +43,7 @@ function Player() {
   const [submissionEnd, setSubmissionEnd] = useState(null);
   const [votingEnd, setVotingEnd] = useState(null);
   const [gameEndData, setGameEndData] = useState(null);
+  const [defaultQuestionUsed, setDefaultQuestionUsed] = useState(false);
 
   useEffect(() => {
     console.log("[Player] Component mounted");
@@ -75,31 +76,15 @@ function Player() {
       setHasSubmitted(false);
     });
 
-    socket.on('voting_phase', ({ questions }) => {
-      // handle optional voting end timestamp
+    socket.on('voting_phase', ({ questions, votingEnd }) => {
+      // Voting payload from server should already be filtered per-player
       setGameState('voting');
-      console.log('=== Voting Phase Debug ===');
-      console.log('All questions received:', questions);
-      console.log('Current socket ID:', socket.id);
-      
-      // Store original questions array for correct numbering
-  setAllQuestions(questions);
-      
-      // Filter out the player's own question
-      const filteredQuestions = questions.filter(question => {
-        console.log('Processing question:', {
-          questionId: question.id,
-          questionAuthorId: question.authorId,
-          currentSocketId: socket.id,
-          isOwnQuestion: question.authorId === socket.id
-        });
-        return question.authorId !== socket.id;
-      });
-      
-      console.log('Filtered questions:', filteredQuestions);
-      console.log('========================');
-      setDisplayedQuestions(filteredQuestions);
+      console.log('=== Voting Phase Debug (client) ===');
+      console.log('Voting questions payload (already filtered):', questions);
+      setAllQuestions(questions);
+      setDisplayedQuestions(questions);
       setHasVoted(false);
+      if (votingEnd) setVotingEnd(votingEnd);
     });
 
     socket.on('submission_countdown_started', ({ endTime }) => {
@@ -108,11 +93,6 @@ function Player() {
 
     socket.on('submission_countdown_canceled', () => {
       setSubmissionEnd(null);
-    });
-
-    socket.on('voting_phase', ({ questions, votingEnd }) => {
-      // server may include votingEnd timestamp
-      if (votingEnd) setVotingEnd(votingEnd);
     });
 
     socket.on('game_ended', ({ players, finalScores, bonuses }) => {
@@ -127,55 +107,47 @@ function Player() {
     });
 
     socket.on('guessing_phase', ({ question, targetPlayer, authorId }) => {
-      // Add detailed debugging
-      console.log('=== Target Player Debug ===');
-      console.log('targetPlayer:', targetPlayer);
-      console.log('targetPlayer type:', typeof targetPlayer);
-      console.log('targetPlayer properties:', Object.keys(targetPlayer));
-      console.log('socket.id:', socket.id);
-      console.log('========================');
-
+      // Short, deterministic guessing-phase handling
       setGameState('guessing');
       setSelectedQuestion(question);
       setTargetPlayer(targetPlayer);
-      // Use optional chaining to prevent errors
-      setIsAnswering(socket.id === targetPlayer?.id);
       setShowGuessPrompt(false);
       setShowPlayerSelection(false);
       setGuessedPlayer('');
-      setIsOwnQuestion(authorId === socket.id);
 
-      // Add debug for isAnswering calculation
-      console.log('=== isAnswering Calculation ===');
-      console.log('socket.id:', socket.id);
-      console.log('targetPlayer?.id:', targetPlayer?.id);
-      console.log('isAnswering value:', socket.id === targetPlayer?.id);
-      console.log('========================');
+      // Compute local flags to avoid stale state closures
+      const thisIsAnswerer = socket.id === targetPlayer?.id;
+      const thisIsOwnQuestion = authorId === socket.id;
 
-      // If this player is answering
-      if (targetPlayer.id === socket.id) {
-        // Clear any existing timeout
-        if (timeoutRef.current) {
-          clearTimeout(timeoutRef.current);
-        }
-        
+      setIsAnswering(thisIsAnswerer);
+      setIsOwnQuestion(thisIsOwnQuestion);
+
+      // Clear any existing timeout for safety
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current);
+        timeoutRef.current = null;
+      }
+
+      // If this client is the answerer
+      if (thisIsAnswerer) {
+        // Show "Reading the question..." for 7 seconds, then reveal prompt.
+        // IMPORTANT: Do NOT auto-skip here. Progression to the next round must only
+        // happen when the answerer explicitly chooses to skip or submits a guess.
         timeoutRef.current = setTimeout(() => {
-          if (!isOwnQuestion) {
-            // If it's their own question, show the "You wrote this!" message after 10s
-            setShowGuessPrompt(true);
-          } else {
-            // If it's someone else's question, show the guess prompt after 30s
-            const innerTimeout = setTimeout(() => {
-              setShowGuessPrompt(true);
-            }, 10000);
-            timeoutRef.current = innerTimeout;
-          }
-        }, 10000);
+          setShowGuessPrompt(true);
+        }, 7000);
       }
     });
 
     socket.on('vote_received', ({ votesCount }) => {
       setTotalVotes(votesCount);
+    });
+
+    socket.on('vote_error', (errorMessage) => {
+      console.log('[Player] Vote error:', errorMessage);
+      setError(errorMessage);
+      // Reset voted state so user can try again (if not truly voted)
+      setHasVoted(false);
     });
 
     socket.on('new_round', ({ round, targetPlayer }) => {
@@ -203,6 +175,7 @@ function Player() {
       setGuessedPlayer('');           // Reset guessed player
       setIsAnswering(false);  // Reset answering state (will be recalculated in guessing_phase)
       setSelectedQuestion(null);  // Clear previous question
+      setDefaultQuestionUsed(false);  // Allow default question to be used again
 
       // Log state after clearing
       console.log('Player State After Clear:', {
@@ -367,6 +340,7 @@ function Player() {
       socket.off('voting_phase');
       socket.off('guessing_phase');
       socket.off('vote_received');
+      socket.off('vote_error');
       socket.off('new_round');
       socket.off('player_choice');
       socket.off('reconnect_success');
@@ -381,7 +355,7 @@ function Player() {
         timeoutRef.current = null;
       }
     };
-  }, [roomCode, isAnswering]);
+    }, [roomCode]);
 
   const handleJoin = async (e) => {
     e.preventDefault();
@@ -524,7 +498,7 @@ function Player() {
           {/* Form Container */}
           <form onSubmit={handleSubmitQuestion} className="flex flex-col">
             {/* Question Input */}
-            <div className="flex flex-col" style={{ width: '100%', marginBottom: '24px' }}>
+            <div className="flex flex-col" style={{ width: '100%'}}>
               <label
                 className="font-bold mb-2"
                 style={{ 
@@ -565,18 +539,41 @@ function Player() {
             </div>
 
             <div style={{ display: 'flex', gap: '8px', marginBottom: '12px' }}>
-              <button
-                type="button"
+              <span
+                role="button"
+                tabIndex={defaultQuestionUsed ? -1 : 0}
                 onClick={() => {
-                  const dq = defaultQuestions[Math.floor(Math.random() * defaultQuestions.length)];
-                  setQuestion(dq);
-                  setIsDefaultQuestion(true);
+                  if (!defaultQuestionUsed) {
+                    const dq = defaultQuestions[Math.floor(Math.random() * defaultQuestions.length)];
+                    setQuestion(dq);
+                    setIsDefaultQuestion(true);
+                    setDefaultQuestionUsed(true);
+                  }
                 }}
-                className="bg-white rounded-full text-[#B96759] font-bold hover:bg-opacity-90 transition-all focus:outline-none focus:ring-2 focus:ring-white"
-                style={{ padding: '8px 12px' }}
+                onKeyDown={(e) => {
+                  if (!defaultQuestionUsed && (e.key === 'Enter' || e.key === ' ')) {
+                    e.preventDefault();
+                    const dq = defaultQuestions[Math.floor(Math.random() * defaultQuestions.length)];
+                    setQuestion(dq);
+                    setIsDefaultQuestion(true);
+                    setDefaultQuestionUsed(true);
+                  }
+                }}
+                style={{
+                  color: '#FFFFFF',
+                  cursor: defaultQuestionUsed ? 'default' : 'pointer',
+                  alignSelf: 'flex-start',
+                  fontFamily: 'MADE Gentle, sans-serif',
+                  fontSize: '18px',
+                  paddingTop: '6px',
+                  paddingBottom: '4px',
+                  textDecoration: 'underline',
+                  opacity: defaultQuestionUsed ? 0.5 : 1,
+                  transition: 'opacity 0.2s ease'
+                }}
               >
                 Give me a question
-              </button>
+              </span>
               {isDefaultQuestion && (
                 <div style={{ alignSelf: 'center', color: '#FFFFFF' }}>Default question locked</div>
               )}
@@ -671,7 +668,11 @@ function Player() {
       return () => clearInterval(iv);
     }, []);
     const remaining = Math.max(0, Math.ceil((endTime - Date.now()) / 1000));
-    return <div>Submission auto-fill in: <strong>{remaining}s</strong></div>;
+    return (
+      <div style={{ color: '#FFFFFF', fontFamily: 'MADE Gentle, sans-serif', fontSize: '18px' }}>
+        Submission auto-fill in: <strong>{remaining}s</strong>
+      </div>
+    );
   };
 
   const renderWaitingForOthers = () => {
@@ -763,8 +764,19 @@ function Player() {
   };
 
   const handleVote = (questionId) => {
-    socket.emit('submit_vote', { roomCode, questionId });
-    setHasVoted(true);
+    // Defensive check: ensure the player is not voting for their own question
+    const votedQuestion = displayedQuestions.find(q => q.id === questionId);
+    if (votedQuestion && votedQuestion.authorId === socket.id) {
+      console.warn('[Player] Attempted to vote for own question (should be filtered by UI)');
+      setError('You cannot vote for your own question');
+      return;
+    }
+    
+    // Only allow vote if not already voted
+    if (!hasVoted) {
+      socket.emit('submit_vote', { roomCode, questionId });
+      setHasVoted(true);
+    }
   };
 
   const renderVoting = () => {
@@ -782,7 +794,11 @@ function Player() {
         return () => clearInterval(iv);
       }, []);
       const remaining = Math.max(0, Math.ceil((endTime - Date.now()) / 1000));
-      return <div style={{ color: '#FFFFFF', marginBottom: '8px' }}>Voting ends in: <strong>{remaining}s</strong></div>;
+      return (
+        <div style={{ color: '#FFFFFF', marginBottom: '8px', fontFamily: 'MADE Gentle, sans-serif', fontSize: '18px' }}>
+          Voting ends in: <strong>{remaining}s</strong>
+        </div>
+      );
     };
 
     // Animated ellipses component
@@ -878,9 +894,8 @@ function Player() {
               {displayedQuestions.length > 0 ? (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
                   {displayedQuestions.map((question) => {
-                    // Find the question's original index in the full questions array
-                    const originalIndex = allQuestions.findIndex(q => q.id === question.id);
-                    const questionNumber = originalIndex !== -1 ? originalIndex + 1 : 0;
+                    // Use the questionNumber from server payload if available
+                    const questionNumber = question.questionNumber || 1;
                     
                     return (
                       <button
@@ -955,6 +970,12 @@ function Player() {
       choice: wantsToGuess ? 'guess' : 'skip' 
     });
 
+    // Clear any pending reading timeout
+    if (timeoutRef.current) {
+      clearTimeout(timeoutRef.current);
+      timeoutRef.current = null;
+    }
+
     if (wantsToGuess) {
       // If they want to guess, show player selection
       setShowPlayerSelection(true);
@@ -967,6 +988,11 @@ function Player() {
 
   const handleGuessSubmit = () => {
     if (guessedPlayer) {
+      // Clear both main and auto-skip timeouts
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current);
+        timeoutRef.current = null;
+      }
       socket.emit('make_guess', { 
         roomCode, 
         guessedPlayerId: guessedPlayer 
@@ -1060,18 +1086,46 @@ function Player() {
               {isOwnQuestion ? (
                 <div>
                   {!showGuessPrompt ? (
-                    <p 
-                      style={{ 
-                        fontFamily: 'MADE Gentle, sans-serif', 
-                        fontSize: '18px',
-                        color: '#FFFFFF',
-                        marginBottom: '16px'
-                      }}
-                    >
-                      Reading the question...
-                    </p>
+                    <>
+                      <p 
+                        style={{ 
+                          fontFamily: 'MADE Gentle, sans-serif', 
+                          fontSize: '18px',
+                          color: '#FFFFFF',
+                          marginBottom: '16px'
+                        }}
+                      >
+                        Reading the question...
+                      </p>
+                      <div className="bg-white rounded-lg p-6" style={{ marginTop: '16px' }}>
+                        <p 
+                          style={{ 
+                            fontFamily: 'MADE Gentle, sans-serif', 
+                            fontSize: '20px',
+                            color: '#B96759',
+                            margin: 0,
+                            wordWrap: 'break-word'
+                          }}
+                        >
+                          {sanitizeForDisplay(selectedQuestion)}
+                        </p>
+                      </div>
+                    </>
                   ) : (
                     <>
+                      <div className="bg-white rounded-lg p-6" style={{ marginBottom: '16px' }}>
+                        <p 
+                          style={{ 
+                            fontFamily: 'MADE Gentle, sans-serif', 
+                            fontSize: '20px',
+                            color: '#B96759',
+                            margin: 0,
+                            wordWrap: 'break-word'
+                          }}
+                        >
+                          {sanitizeForDisplay(selectedQuestion)}
+                        </p>
+                      </div>
                       <p 
                         className="mb-4"
                         style={{ 
@@ -1111,8 +1165,48 @@ function Player() {
                 </div>
               ) : (
                 <>
+                  {!showGuessPrompt && (
+                    <>
+                      <p 
+                        style={{ 
+                          fontFamily: 'MADE Gentle, sans-serif', 
+                          fontSize: '18px',
+                          color: '#FFFFFF',
+                          marginBottom: '16px'
+                        }}
+                      >
+                        Reading the question...
+                      </p>
+                      <div className="bg-white rounded-lg p-6" style={{ marginTop: '16px' }}>
+                        <p 
+                          style={{ 
+                            fontFamily: 'MADE Gentle, sans-serif', 
+                            fontSize: '20px',
+                            color: '#B96759',
+                            margin: 0,
+                            wordWrap: 'break-word'
+                          }}
+                        >
+                          {sanitizeForDisplay(selectedQuestion)}
+                        </p>
+                      </div>
+                    </>
+                  )}
                   {showGuessPrompt && !showPlayerSelection && (
                     <div>
+                      <div className="bg-white rounded-lg p-6" style={{ marginBottom: '16px' }}>
+                        <p 
+                          style={{ 
+                            fontFamily: 'MADE Gentle, sans-serif', 
+                            fontSize: '20px',
+                            color: '#B96759',
+                            margin: 0,
+                            wordWrap: 'break-word'
+                          }}
+                        >
+                          {sanitizeForDisplay(selectedQuestion)}
+                        </p>
+                      </div>
                       <p 
                         className="mb-4"
                         style={{ 

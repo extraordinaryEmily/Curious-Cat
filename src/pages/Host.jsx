@@ -45,6 +45,12 @@ function Host() {
       setIsCreatingRoom(false); // Reset the flag after room is created
     });
 
+    socket.on('room_creation_error', (msg) => {
+      console.log('[Host] Room creation error:', msg);
+      setError(msg);
+      setIsCreatingRoom(false);
+    });
+
     socket.on('player_joined', ({ players }) => {
       console.log('[Host] Players updated:', players);
       console.log('[Host] Player names:', players.map(p => p.name));
@@ -67,6 +73,7 @@ function Host() {
     });
 
     socket.on('voting_phase', ({ questions }) => {
+      console.log('[Host] Received voting_phase with questions:', questions);
       setDisplayedQuestions(questions);
       setCurrentPhase('voting');
     });
@@ -186,6 +193,12 @@ function Host() {
   const handleCreateRoom = async () => {
     if (isCreatingRoom || roomCode) {
       console.log('[Host] Room creation already in progress or room exists');
+      return;
+    }
+
+    // Validate minimum rounds
+    if (numberOfRounds < 3) {
+      setError('Minimum 3 rounds required');
       return;
     }
 
@@ -330,10 +343,10 @@ function Host() {
           <div className="p-6 rounded-lg mt-4 shadow" style={{ background: '#B96759', fontFamily: 'MADE Gentle, sans-serif' }}>
             <h3 className="text-2xl mb-4">Vote for Your Favorite Question!</h3>
             <div className="flex flex-col gap-4">
-              {displayedQuestions.map((question, index) => (
+              {displayedQuestions.map((question) => (
                 <div key={question.id} className="bg-gray-700 p-4 rounded-lg flex items-center" style={{ fontFamily: 'MADE Gentle, sans-serif' }}>
                   <p className="text-xl mb-0 font-bold">
-                    Question {index + 1}: <span className="text-lg font-normal">{sanitizeForDisplay(question.targetPlayer)}, {sanitizeForDisplay(formatQuestion(question.text))}</span>
+                    Question {question.questionNumber || 1}: <span className="text-lg font-normal">{sanitizeForDisplay(question.targetPlayer)}, {sanitizeForDisplay(formatQuestion(question.text))}</span>
                   </p>
                 </div>
               ))}

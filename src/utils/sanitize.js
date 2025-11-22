@@ -16,12 +16,12 @@ export const sanitizeInput = (input) => {
 export const sanitizeForDisplay = (text) => {
   if (typeof text !== 'string') return text;
   
-  // Remove any HTML tags and escape special characters
-  return text
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#x27;')
-    .replace(/\//g, '&#x2F;');
+  // Use a DOM text node to normalize text for safe display.
+  // Setting textContent ensures any HTML in the string is not interpreted,
+  // and returning textContent gives the original characters (quotes/apostrophes)
+  // while preventing HTML injection when rendered as text by React.
+  const div = document.createElement('div');
+  div.textContent = text;
+  return div.textContent;
 };
 

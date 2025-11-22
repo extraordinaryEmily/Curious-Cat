@@ -255,6 +255,13 @@ io.on("connection", (socket) => {
 
   socket.on("create_room", ({ numberOfRounds }) => {
     console.log(`[Server] Create room request from socket: ${socket.id}`);
+    
+    // Validate minimum rounds
+    if (!numberOfRounds || numberOfRounds < 3) {
+      socket.emit("room_creation_error", "Minimum 3 rounds required");
+      return;
+    }
+    
     const roomCode = generateRoomCode();
     console.log(`[Server] Generated room code: ${roomCode}`);
     
@@ -544,7 +551,8 @@ io.on("connection", (socket) => {
         authorId: socket.id,  // Ensure we're setting authorId here
         authorName: playerName,
         targetPlayer: targetPlayerName,
-        isDefault: !!isDefault
+        isDefault: !!isDefault,
+        round: room.currentRound
       };
       
       // Debug log 2: Question object creation
@@ -552,8 +560,11 @@ io.on("connection", (socket) => {
       
       room.questions.push(newQuestion);
 
+      // Work only with questions for the current round to avoid counting stale ones
+      const currentRoundQuestionsBefore = room.questions.filter(q => q.round === room.currentRound);
+
       // If there was a submission timer running, cancel it because we now have a new submission
-      if (room.submissionTimer && room.questions.length === room.players.length) {
+      if (room.submissionTimer && currentRoundQuestionsBefore.length === room.players.length) {
         clearTimeout(room.submissionTimer);
         room.submissionTimer = null;
         room.submissionTimerEnd = null;
@@ -572,13 +583,21 @@ io.on("connection", (socket) => {
 
       // If we reached half of players and no submission timer, start 60s countdown
       const half = Math.ceil(room.players.length / 2);
-      if (room.questions.length >= half && !room.submissionTimer && room.currentPhase === 'question') {
+  if (currentRoundQuestionsBefore.length >= half && !room.submissionTimer && room.currentPhase === 'question') {
         const end = Date.now() + 60000; // 60s
         room.submissionTimerEnd = end;
         io.to(roomCode).emit('submission_countdown_started', { endTime: end });
         room.submissionTimer = setTimeout(() => {
-          // Auto-fill missing players with default questions
-          const missingPlayers = room.players.filter(p => !room.questions.some(q => q.authorId === p.id));
+          // Auto-fill missing players with default questions for the current round
+          // If the room has already moved past QUESTION phase, abort to avoid re-entering voting
+          if (!room || room.currentPhase !== 'question') {
+            console.log(`[Server] submissionTimer fired but room ${roomCode} is in phase ${room ? room.currentPhase : 'UNKNOWN'}, aborting auto-fill.`);
+            room.submissionTimer = null;
+            room.submissionTimerEnd = null;
+            return;
+          }
+
+          const missingPlayers = room.players.filter(p => !room.questions.some(q => q.authorId === p.id && q.round === room.currentRound));
           missingPlayers.forEach(p => {
             const dq = defaultQuestions[Math.floor(Math.random() * defaultQuestions.length)];
             const randomTarget = room.players.filter(pp => pp.id !== p.id)[Math.floor(Math.random() * Math.max(1, room.players.length - 1))];
@@ -588,7 +607,8 @@ io.on("connection", (socket) => {
               authorId: p.id,
               authorName: p.name,
               targetPlayer: randomTarget ? randomTarget.name : null,
-              isDefault: true
+              isDefault: true,
+              round: room.currentRound
             };
             room.questions.push(dqObj);
             // track length
@@ -601,12 +621,19 @@ io.on("connection", (socket) => {
           room.submissionTimer = null;
           room.submissionTimerEnd = null;
 
-          // proceed to voting if all questions present
-          if (room.questions.length === room.players.length) {
+          // proceed to voting if all questions for current round are present AND we're still in question phase
+          const currentRoundQuestionsAfter = room.questions.filter(q => q.round === room.currentRound);
+          if (room.currentPhase === 'question' && currentRoundQuestionsAfter.length === room.players.length) {
             room.currentPhase = 'voting';
-            let questionsToDisplay = room.questions;
-            if (room.questions.length > 6) {
-              questionsToDisplay = room.questions
+            // Clear any lingering submission timer just in case (we're already inside it)
+            if (room.submissionTimer) {
+              clearTimeout(room.submissionTimer);
+              room.submissionTimer = null;
+              room.submissionTimerEnd = null;
+            }
+            let questionsToDisplay = currentRoundQuestionsAfter;
+            if (questionsToDisplay.length > 6) {
+              questionsToDisplay = questionsToDisplay
                 .sort(() => Math.random() - 0.5)
                 .slice(0, 6);
             }
@@ -615,10 +642,24 @@ io.on("connection", (socket) => {
             questionsToDisplay.forEach(q => {
               room.displayedQuestionOccurrences[q.id] = (room.displayedQuestionOccurrences[q.id] || 0) + 1;
             });
+            // Prepare questions with consistent numbering based on display order
+            const questionsWithNumbers = questionsToDisplay.map((q, idx) => ({
+              id: q.id,
+              text: q.text,
+              targetPlayer: q.targetPlayer,
+              authorId: q.authorId,
+              questionNumber: idx + 1
+            }));
             // start voting timer (60s)
             const votingEnd = Date.now() + 60000;
             room.votingTimerEnd = votingEnd;
-            io.to(roomCode).emit('voting_phase', { questions: questionsToDisplay.map(q => ({ id: q.id, text: q.text, targetPlayer: q.targetPlayer })), votingEnd });
+            // Send all questions to Host for display
+            io.to(room.host).emit('voting_phase', { questions: questionsWithNumbers, votingEnd });
+            // Send per-player filtered voting payload so players do not see their own question
+            room.players.forEach(p => {
+              const filtered = questionsWithNumbers.filter(q => q.authorId !== p.id);
+              io.to(p.id).emit('voting_phase', { questions: filtered, votingEnd });
+            });
             room.votingTimer = setTimeout(() => finalizeVoting(roomCode), 60000);
           }
         }, 60000);
@@ -629,12 +670,22 @@ io.on("connection", (socket) => {
 
       io.to(roomCode).emit("question_submitted", { playerName });
 
-      if (room.questions.length === room.players.length) {
+  // Use only questions from the current round to decide whether to progress
+  const currentRoundQuestions = room.questions.filter(q => q.round === room.currentRound);
+  // Only progress to voting if we're still in the QUESTION phase for this room
+  if (room.currentPhase === 'question' && currentRoundQuestions.length === room.players.length) {
         room.currentPhase = "voting";
 
-        let questionsToDisplay = room.questions;
-        if (room.questions.length > 6) {
-          questionsToDisplay = room.questions
+        // If a submission timer exists for this round, cancel it - we've progressed to voting
+        if (room.submissionTimer) {
+          clearTimeout(room.submissionTimer);
+          room.submissionTimer = null;
+          room.submissionTimerEnd = null;
+        }
+
+        let questionsToDisplay = currentRoundQuestions;
+        if (questionsToDisplay.length > 6) {
+          questionsToDisplay = questionsToDisplay
             .sort(() => Math.random() - 0.5)
             .slice(0, 6);
         }
@@ -646,15 +697,28 @@ io.on("connection", (socket) => {
           room.displayedQuestionOccurrences[q.id] = (room.displayedQuestionOccurrences[q.id] || 0) + 1;
         });
 
-        // Prepare anonymized questions for the clients (no author info)
-        const payloadQuestions = questionsToDisplay.map(q => ({ id: q.id, text: q.text, targetPlayer: q.targetPlayer }));
+        // Prepare questions with consistent numbering based on display order
+        const questionsWithNumbers = questionsToDisplay.map((q, idx) => ({
+          id: q.id,
+          text: q.text,
+          targetPlayer: q.targetPlayer,
+          authorId: q.authorId,
+          questionNumber: idx + 1
+        }));
 
         // Start voting timer (60s)
         const votingEnd = Date.now() + 60000;
         room.votingTimerEnd = votingEnd;
         room.votingTimer = setTimeout(() => finalizeVoting(roomCode), 60000);
 
-        io.to(roomCode).emit("voting_phase", { questions: payloadQuestions, votingEnd });
+        // Send all questions to Host for display (Host ID stored in room.host)
+        io.to(room.host).emit('voting_phase', { questions: questionsWithNumbers, votingEnd });
+
+        // Emit per-player filtered voting payload so each player does not receive their own question
+        room.players.forEach(p => {
+          const filtered = questionsWithNumbers.filter(q => q.authorId !== p.id);
+          io.to(p.id).emit('voting_phase', { questions: filtered, votingEnd });
+        });
       }
     }
   });
@@ -674,8 +738,17 @@ io.on("connection", (socket) => {
     if (room && room.currentPhase === "voting") {
       // First check if this is the player's own question
       const isOwnQuestion = room.questions.find(q => q.id === questionId && q.authorId === socket.id);
-      if (isOwnQuestion || room.votes[socket.id]) {
-        return; // Don't allow voting for own question or voting twice
+      if (isOwnQuestion) {
+        console.log(`[Server] Player ${socket.id} attempted to vote for their own question in ${roomCode}`);
+        socket.emit('vote_error', 'You cannot vote for your own question');
+        return;
+      }
+      
+      // Check if player already voted
+      if (room.votes[socket.id]) {
+        console.log(`[Server] Player ${socket.id} attempted to vote twice in ${roomCode}`);
+        socket.emit('vote_error', 'You have already voted');
+        return;
       }
 
       room.votes[socket.id] = questionId;
@@ -740,6 +813,21 @@ io.on("connection", (socket) => {
 
     room.selectedQuestion = room.questions.find(q => q.id === randomWinningId);
     room.currentPhase = 'guessing';
+
+    // Clear any voting timers/state now that we've moved into guessing
+    if (room.votingTimer) {
+      clearTimeout(room.votingTimer);
+      room.votingTimer = null;
+      room.votingTimerEnd = null;
+    }
+    // Also clear any pending submission timer so it cannot re-trigger later
+    if (room.submissionTimer) {
+      clearTimeout(room.submissionTimer);
+      room.submissionTimer = null;
+      room.submissionTimerEnd = null;
+    }
+    // Clear recorded votes to avoid carry-over if voting is accidentally re-emitted
+    room.votes = {};
 
     // If the winning question was a default question, award its author the votes now
     const winningQ = room.selectedQuestion;
