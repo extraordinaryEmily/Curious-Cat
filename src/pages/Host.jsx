@@ -167,8 +167,12 @@ function Host() {
   }, [submittedPlayers]);
 
   const handleStartGame = () => {
-    console.log('[Host] Emitting start_game event:', roomCode);
-    socket.emit('start_game', { roomCode });
+    console.log('[Host] Emitting start_game event:', { 
+      roomCode, 
+      numberOfRounds 
+    });
+    console.log('[Host] handleStartGame() fired. Current numberOfRounds =', numberOfRounds);
+    socket.emit('start_game', { roomCode, numberOfRounds });
   };
 
   const renderQuestions = () => {

@@ -439,9 +439,11 @@ io.on("connection", (socket) => {
         console.log('[Server] Post-start game state:', {
             roomCode,
             gameState: room.gameState,
+            totalRounds: room.numberOfRounds,
             currentRound: room.currentRound,
+            players: room.players.map(p => ({ name: p.name, id: p.id })),
             targetPlayer: room.targetPlayer,
-            originalPlayers: originalPlayers.get(roomCode)
+            initialScores: room.scores
         });
 
         io.to(roomCode).emit("game_started", {
@@ -449,7 +451,7 @@ io.on("connection", (socket) => {
             targetPlayer: room.targetPlayer
         });
 
-        console.log('[Server] Game start complete');
+        console.log(`[Server] ✓ Game started: ${room.players.length} players, ${room.numberOfRounds} rounds total`);
     } catch (error) {
         console.error('[Server] Error in start_game:', error);
     }
@@ -759,6 +761,8 @@ io.on("connection", (socket) => {
         // If the voted question was a default question, do NOT award +1 at vote time.
         if (!votedQuestion.isDefault) {
           room.scores[votedQuestion.authorId] = (room.scores[votedQuestion.authorId] || 0) + 1;
+          const votedAuthor = room.players.find(p => p.id === votedQuestion.authorId);
+          console.log(`[Server] 📊 Vote awarded: "${votedAuthor?.name}" received +1 point (question votes)`);
 
           // Update player scores immediately
           room.players = room.players.map(player => ({
@@ -839,6 +843,8 @@ io.on("connection", (socket) => {
           ...player,
           score: room.scores[player.id] || 0
         }));
+        const defaultAuthor = room.players.find(p => p.id === winningQ.authorId);
+        console.log(`[Server] 📊 Default question votes: "${defaultAuthor?.name}" received +${votesForWinning} points`);
       }
     }
 
@@ -888,11 +894,16 @@ io.on("connection", (socket) => {
       updatedRoom.scores[socket.id] = (updatedRoom.scores[socket.id] || 0) + 5;
       // track snoop count
       updatedRoom.snoopCounts[socket.id] = (updatedRoom.snoopCounts[socket.id] || 0) + 1;
+      const guesser = updatedRoom.players.find(p => p.id === socket.id);
+      console.log(`[Server] ✓ Correct guess! "${guesser?.name}" received +5 points (correct answer)`);
     } else {
       // Question author gets 3 points if answerer guesses wrong (competitive)
       updatedRoom.scores[questionData.authorId] = (updatedRoom.scores[questionData.authorId] || 0) + 3;
       // track snoop attempt
       updatedRoom.snoopCounts[socket.id] = (updatedRoom.snoopCounts[socket.id] || 0) + 1;
+      const author = updatedRoom.players.find(p => p.id === questionData.authorId);
+      const guesser = updatedRoom.players.find(p => p.id === socket.id);
+      console.log(`[Server] ✗ Wrong guess: "${author?.name}" received +3 points (defended question)`);
     }
 
         // Update player scores
@@ -901,9 +912,20 @@ io.on("connection", (socket) => {
             score: updatedRoom.scores[player.id] || 0
         }));
 
+        // Log round end scores
+        console.log(`[Server] 📈 Round ${updatedRoom.currentRound} scores:`, 
+          updatedRoom.players.map(p => ({ name: p.name, score: p.score }))
+        );
+
         // Check if game should end
         if (updatedRoom.currentRound >= updatedRoom.numberOfRounds) {
             updatedRoom.gameState = "finished";
+            const winner = updatedRoom.players.reduce((prev, current) => (prev.score > current.score) ? prev : current);
+            console.log(`[Server] 🏆 GAME OVER! Final scores:`);
+            updatedRoom.players.sort((a, b) => b.score - a.score).forEach((p, idx) => {
+              console.log(`[Server]    #${idx + 1}: "${p.name}" - ${p.score} points`);
+            });
+            console.log(`[Server] 🥇 Winner: "${winner.name}" with ${winner.score} points`);
             io.to(roomCode).emit("game_ended", {
                 players: updatedRoom.players,
                 finalScores: updatedRoom.scores
@@ -939,6 +961,8 @@ io.on("connection", (socket) => {
   socket.on("skip_guess", ({ roomCode }) => {
     const room = rooms.get(roomCode);
     if (room && room.currentPhase === "guessing") {
+      const skippingPlayer = room.players.find(p => p.id === socket.id);
+      console.log(`[Server] ⏭️  "${skippingPlayer?.name}" skipped guessing`);
       // No points awarded for skipping
       io.to(roomCode).emit("player_choice", { choice: 'skip' });
       
@@ -957,6 +981,12 @@ io.on("connection", (socket) => {
           });
           // Update player score objects
           updatedRoom.players = updatedRoom.players.map(player => ({ ...player, score: updatedRoom.scores[player.id] || 0 }));
+          const winner = updatedRoom.players.reduce((prev, current) => (prev.score > current.score) ? prev : current);
+          console.log(`[Server] 🏆 GAME OVER (via skip)! Final scores:`);
+          updatedRoom.players.sort((a, b) => b.score - a.score).forEach((p, idx) => {
+            console.log(`[Server]    #${idx + 1}: "${p.name}" - ${p.score} points`);
+          });
+          console.log(`[Server] 🥇 Winner: "${winner.name}" with ${winner.score} points`);
           io.to(roomCode).emit("game_ended", {
             players: updatedRoom.players,
             finalScores: updatedRoom.scores,

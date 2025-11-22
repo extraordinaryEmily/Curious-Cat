@@ -176,6 +176,8 @@ function Player() {
       setIsAnswering(false);  // Reset answering state (will be recalculated in guessing_phase)
       setSelectedQuestion(null);  // Clear previous question
       setDefaultQuestionUsed(false);  // Allow default question to be used again
+      setSubmissionEnd(null);  // CRITICAL: Clear leftover submission timer from previous round
+      setVotingEnd(null);  // Also clear voting timer
 
       // Log state after clearing
       console.log('Player State After Clear:', {
@@ -1087,29 +1089,7 @@ function Player() {
                 <div>
                   {!showGuessPrompt ? (
                     <>
-                      <p 
-                        style={{ 
-                          fontFamily: 'MADE Gentle, sans-serif', 
-                          fontSize: '18px',
-                          color: '#FFFFFF',
-                          marginBottom: '16px'
-                        }}
-                      >
-                        Reading the question...
-                      </p>
-                      <div className="bg-white rounded-lg p-6" style={{ marginTop: '16px' }}>
-                        <p 
-                          style={{ 
-                            fontFamily: 'MADE Gentle, sans-serif', 
-                            fontSize: '20px',
-                            color: '#B96759',
-                            margin: 0,
-                            wordWrap: 'break-word'
-                          }}
-                        >
-                          {sanitizeForDisplay(selectedQuestion)}
-                        </p>
-                      </div>
+
                     </>
                   ) : (
                     <>
@@ -1167,29 +1147,7 @@ function Player() {
                 <>
                   {!showGuessPrompt && (
                     <>
-                      <p 
-                        style={{ 
-                          fontFamily: 'MADE Gentle, sans-serif', 
-                          fontSize: '18px',
-                          color: '#FFFFFF',
-                          marginBottom: '16px'
-                        }}
-                      >
-                        Reading the question...
-                      </p>
-                      <div className="bg-white rounded-lg p-6" style={{ marginTop: '16px' }}>
-                        <p 
-                          style={{ 
-                            fontFamily: 'MADE Gentle, sans-serif', 
-                            fontSize: '20px',
-                            color: '#B96759',
-                            margin: 0,
-                            wordWrap: 'break-word'
-                          }}
-                        >
-                          {sanitizeForDisplay(selectedQuestion)}
-                        </p>
-                      </div>
+
                     </>
                   )}
                   {showGuessPrompt && !showPlayerSelection && (

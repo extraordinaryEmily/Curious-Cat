@@ -52,10 +52,6 @@ These 10 test scenarios cover all game features and scoring paths. Run them in s
 - Socket event ordering issues
 - Score state mutation
 
-**RESULTS**
-- &quot;Alice, what&#x27;s a small thing that always makes your day better?&quot;
-- Default question button ugly but works
-
 ---
 
 ## Scenario 2: Minimum Rounds Validation
