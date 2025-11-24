@@ -54,43 +54,6 @@ These 10 test scenarios cover all game features and scoring paths. Run them in s
 
 ---
 
-## Scenario 2: Minimum Rounds Validation
-
-**Setup:**
-- 1 host player (trying to create room)
-- Test minimum rounds enforcement
-
-**Steps:**
-1. Host opens "Create Game" screen
-2. Attempt to set rounds to 0 (drag slider left)
-3. **ERROR: Slider should not go below 3**
-4. Attempt to set rounds to 1
-5. **ERROR: Slider should not go below 3**
-6. Attempt to set rounds to 2
-7. **ERROR: Slider should not go below 3**
-8. Set rounds to exactly 3 (minimum allowed)
-9. Click "Create Game"
-10. ✅ Room creation succeeds
-11. (Optional) Manually test server validation by spoofing socket event with numberOfRounds: 0
-
-**Expected Results:**
-- ✅ UI slider enforces `min="3"` on range input
-- ✅ Slider prevents selection below 3 rounds
-- ✅ Client-side validation in handleCreateRoom checks `numberOfRounds < 3`
-- ✅ Server-side validation rejects room creation with < 3 rounds
-- ✅ Error message shown: "Minimum 3 rounds required"
-- ✅ Room not created if rounds < 3
-- ✅ Room successfully created when rounds = 3
-
-**Failure Points to Monitor:**
-- Slider allows selection below 3 (UI bug)
-- Room created with 1-2 rounds (validation bypassed)
-- No error message displayed (UX issue)
-- Server crashes on invalid rounds value
-- Error event not handled by client
-
----
-
 ## Scenario 3: Default Question Edge Case
 
 **Setup:**
@@ -389,8 +352,6 @@ These 10 test scenarios cover all game features and scoring paths. Run them in s
 10. Game ends
 
 **Expected Results:**
-- ✅ Names with numbers rejected
-- ✅ 10-char names accepted
 - ✅ Questions > 150 chars truncated or rejected
 - ✅ Rapid votes don't cause race conditions
 - ✅ Rapid guesses blocked until phase is active

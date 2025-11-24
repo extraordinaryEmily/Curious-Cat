@@ -167,11 +167,24 @@ function Host() {
   }, [submittedPlayers]);
 
   const handleStartGame = () => {
+    // Validate numberOfRounds before starting
+    if (numberOfRounds < 3 || numberOfRounds > 20) {
+      console.error('[Host] Invalid numberOfRounds:', numberOfRounds);
+      return;
+    }
+
     console.log('[Host] Emitting start_game event:', { 
       roomCode, 
       numberOfRounds 
     });
     console.log('[Host] handleStartGame() fired. Current numberOfRounds =', numberOfRounds);
+    
+    try {
+      localStorage.setItem('numberOfRounds', numberOfRounds);
+    } catch (error) {
+      console.error('Error storing numberOfRounds to localStorage:', error);
+    }
+    
     socket.emit('start_game', { roomCode, numberOfRounds });
   };
 
@@ -200,21 +213,11 @@ function Host() {
       return;
     }
 
-    // Validate minimum rounds
-    if (numberOfRounds < 3) {
-      setError('Minimum 3 rounds required');
-      return;
-    }
-
     try {
       setIsCreatingRoom(true);
       await connectSocket(true);
-      try {
-        localStorage.setItem('numberOfRounds', numberOfRounds);
-      } catch (error) {
-        console.error('Error storing numberOfRounds to localStorage:', error);
-      }
-      socket.emit('create_room', { numberOfRounds });
+      // Don't send numberOfRounds when creating room - it will be sent when starting the game
+      socket.emit('create_room', {});
     } catch (error) {
       console.error('[Host] Failed to create room:', error);
       setIsCreatingRoom(false);
@@ -428,64 +431,86 @@ function Host() {
   };
 
   const renderGameOver = () => {
+    if (gameState !== 'finished') return null;
+    
     const sortedPlayers = [...players].sort((a, b) => b.score - a.score);
     const winner = sortedPlayers[0];
   
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center px-4">
-        <div className="text-center max-w-4xl w-full">
-          <h1 className="text-6xl mb-8 text-yellow-500 font-bold">Game Over!</h1>
-        
+      <div className="host-setup-container">
+        <div className="host-setup-box">
+          <h2 className="player-list-title text-center" style={{ fontFamily: 'MADE Gentle, sans-serif' }}>Game Over</h2>
+          
           {/* Winner Section */}
-          <div className="mb-12">
-            <div className="bg-yellow-800 p-8 rounded-lg mb-8">
-              <h2 className="text-3xl mb-2">Winner</h2>
-              <p className="text-4xl font-bold text-yellow-400">{winner.name}</p>
-              <p className="text-2xl text-yellow-300">{winner.score} points</p>
+          <div className="p-6 rounded-lg mt-4 shadow" style={{ background: '#B96759', fontFamily: 'MADE Gentle, sans-serif' }}>
+            <h3 className="text-2xl mb-4 text-white">Winner</h3>
+            <div className="bg-yellow-800 p-6 rounded-lg mb-4">
+              <p className="text-3xl font-bold text-yellow-400 mb-2">{sanitizeForDisplay(winner?.name || 'N/A')}</p>
+              <p className="text-xl text-yellow-300">{winner?.score || 0} points</p>
             </div>
           </div>
 
           {/* All Players Scoreboard */}
-          <div className="bg-gray-800 p-8 rounded-lg">
-            <h2 className="text-3xl mb-6">Final Scoreboard</h2>
-            <div className="space-y-4 max-w-2xl mx-auto">
-              {sortedPlayers.map((player, index) => (
-                <div 
-                  key={player.id} 
-                  className={`p-6 rounded-lg flex items-center justify-between
-                    ${index === 0 ? 'bg-yellow-800/50' : 'bg-gray-700'}
-                    ${index === 1 ? 'bg-gray-600' : ''}
-                    ${index === 2 ? 'bg-gray-500' : ''}`}
-                >
-                  <div className="flex items-center">
-                    <span className="text-2xl font-bold mr-4">#{index + 1}</span>
-                    <span className="text-xl">{sanitizeForDisplay(player.name)}</span>
-                  </div>
-                  <span className="text-xl font-bold">{player.score} points</span>
+          <div className="p-6 rounded-lg mt-4 shadow" style={{ background: '#B96759', fontFamily: 'MADE Gentle, sans-serif' }}>
+            <h3 className="text-2xl mb-4 text-white">Final Scoreboard</h3>
+            <div className="flex flex-col gap-3">
+            {sortedPlayers.map((player, index) => (
+              <div 
+                key={player.id} 
+                className={`p-4 rounded-lg flex items-center justify-between ${
+                  index === 0 ? 'bg-yellow-800/50' : 'bg-gray-700'
+                }`}
+                style={{ fontFamily: 'MADE Gentle, sans-serif' }}
+              >
+                <div className="flex items-center">
+                  <span className="text-xl font-bold mr-2 text-white">
+                    #{index + 1} {sanitizeForDisplay(player.name)}
+                  </span>
                 </div>
-              ))}
+                <span className="text-lg font-bold text-yellow-400">{player.score} points</span>
+              </div>
+            ))}
             </div>
           </div>
 
           {/* Bonuses Breakdown */}
           {bonuses && bonuses.length > 0 && (
-            <div className="mt-6 bg-gray-700 p-4 rounded-lg">
-              <h3 className="text-2xl mb-2">Bonuses</h3>
-              <ul>
-                {bonuses.map((b, i) => (
-                  <li key={i}>{b.type} — {b.amount} pts to {players.find(p => p.id === b.playerId)?.name || b.playerId}</li>
-                ))}
-              </ul>
+            <div className="p-6 rounded-lg mt-4 shadow" style={{ background: '#B96759', fontFamily: 'MADE Gentle, sans-serif' }}>
+              <h3 className="text-2xl mb-4 text-white">Bonuses Awarded</h3>
+              <div className="flex flex-col gap-2">
+                {bonuses.map((b, i) => {
+                  const bonusPlayer = players.find(p => p.id === b.playerId);
+                  const bonusName = b.type.replace(/_/g, ' ').charAt(0).toUpperCase() + b.type.replace(/_/g, ' ').slice(1);
+                  return (
+                    <div key={i} className="bg-gray-700 p-3 rounded-lg">
+                      <p className="text-lg text-yellow-300">
+                        <strong>{bonusName}</strong>: +{b.amount} pts to <strong>{sanitizeForDisplay(bonusPlayer?.name || 'N/A')}</strong>
+                      </p>
+                    </div>
+                  );
+                })}
+              </div>
             </div>
           )}
 
           {/* Play Again Button */}
-          <button 
-            onClick={() => window.location.reload()}
-            className="mt-8 bg-green-600 px-8 py-4 rounded-lg text-xl hover:bg-green-700 transition"
-          >
-            Play Again
-          </button>
+          {/* Play Again Button */}
+          <div className="mt-6">
+            <button 
+              onClick={() => window.location.reload()}
+              className={`
+                start-button
+                w-full px-6 py-3
+                text-xl font-bold
+                rounded-xl
+                transition-all
+                bg-white text-[#B96759] hover:bg-white/90
+              `}
+              style={{ fontFamily: 'MADE Gentle, sans-serif' }}
+            >
+              Play Again
+            </button>
+          </div>
         </div>
       </div>
     );
@@ -496,6 +521,27 @@ function Host() {
       handleCreateRoom();
     }
   }, [showGameSetup]);
+
+  // Add reload warning when game is active
+  useEffect(() => {
+    // Only warn if there's an active room or game in progress
+    const shouldWarn = roomCode && (gameState === 'playing' || gameState === 'waiting');
+    
+    if (shouldWarn) {
+      const handleBeforeUnload = (e) => {
+        // Modern browsers require returnValue to be set
+        e.preventDefault();
+        e.returnValue = 'Are you sure you want to leave? You will be disconnected from the game.';
+        return e.returnValue;
+      };
+
+      window.addEventListener('beforeunload', handleBeforeUnload);
+
+      return () => {
+        window.removeEventListener('beforeunload', handleBeforeUnload);
+      };
+    }
+  }, [roomCode, gameState]);
 
   return (
     <div className="min-h-screen w-full">
@@ -536,6 +582,8 @@ function Host() {
         </div>
       ) : showGameSetup ? (
         renderGameSetup()
+      ) : gameState === 'finished' ? (
+        renderGameOver()
       ) : (
         <>
           {renderQuestionPhase()}

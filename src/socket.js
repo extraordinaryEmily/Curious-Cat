@@ -1,6 +1,21 @@
 import { io } from 'socket.io-client';
 
-export const socket = io('http://localhost:3000', {
+// Dynamically determine the server URL based on current hostname
+// This allows the app to work on localhost, network IPs, and production
+const getServerUrl = () => {
+  // In development, use the same hostname as the current page
+  // This allows phones on the local network to connect
+  if (typeof window !== 'undefined') {
+    const hostname = window.location.hostname;
+    // If accessing via localhost, use localhost for socket
+    // If accessing via network IP (192.168.x.x, 10.x.x.x, etc.), use that IP
+    return `http://${hostname}:3000`;
+  }
+  // Fallback for SSR or edge cases
+  return 'http://localhost:3000';
+};
+
+export const socket = io(getServerUrl(), {
     autoConnect: false,
     reconnection: false, // Disable automatic reconnection
 });

@@ -253,14 +253,8 @@ io.on("connection", (socket) => {
     });
   });
 
-  socket.on("create_room", ({ numberOfRounds }) => {
+  socket.on("create_room", () => {
     console.log(`[Server] Create room request from socket: ${socket.id}`);
-    
-    // Validate minimum rounds
-    if (!numberOfRounds || numberOfRounds < 3) {
-      socket.emit("room_creation_error", "Minimum 3 rounds required");
-      return;
-    }
     
     const roomCode = generateRoomCode();
     console.log(`[Server] Generated room code: ${roomCode}`);
@@ -269,7 +263,7 @@ io.on("connection", (socket) => {
       host: socket.id,
       players: [],
       gameState: "waiting",
-      numberOfRounds: numberOfRounds,
+      numberOfRounds: null, // Will be set when game starts
       currentRound: 0,
       currentPhase: "waiting",
       questions: [],
@@ -290,7 +284,7 @@ io.on("connection", (socket) => {
     
     rooms.set(roomCode, newRoom);
     socket.join(roomCode);
-    console.log(`[Server] Room created: ${roomCode} with ${numberOfRounds} rounds`);
+    console.log(`[Server] Room created: ${roomCode} (numberOfRounds will be set on start)`);
     console.log(`[Server] Host ID: ${socket.id}`);
     socket.emit("room_created", roomCode);
   });
@@ -394,9 +388,9 @@ io.on("connection", (socket) => {
     }
   });
 
-  socket.on("start_game", ({ roomCode }) => {
+  socket.on("start_game", ({ roomCode, numberOfRounds }) => {
     console.log('\n[Server] === START GAME EVENT ===');
-    console.log('[Server] Start game request:', { roomCode, socketId: socket.id });
+    console.log('[Server] Start game request:', { roomCode, numberOfRounds, socketId: socket.id });
     
     const room = rooms.get(roomCode);
     if (!room) {
@@ -412,12 +406,23 @@ io.on("connection", (socket) => {
         return;
     }
 
+    // Validate and set numberOfRounds
+    if (!numberOfRounds || numberOfRounds < 3 || numberOfRounds > 20) {
+        console.log('[Server] Invalid numberOfRounds:', numberOfRounds);
+        socket.emit("start_game_error", "Number of rounds must be between 3 and 20");
+        return;
+    }
+
     try {
         console.log('[Server] Pre-start game state:', {
             roomCode,
             currentPlayers: room.players,
-            gameState: room.gameState
+            gameState: room.gameState,
+            numberOfRounds: numberOfRounds
         });
+
+        // Update numberOfRounds before starting
+        room.numberOfRounds = numberOfRounds;
 
         // Store original players BEFORE changing game state
         const origPlayers = JSON.parse(JSON.stringify(room.players));
@@ -870,7 +875,8 @@ io.on("connection", (socket) => {
     // Store necessary data before any modifications
     const questionData = {
         authorId: room.selectedQuestion.authorId,
-        text: room.selectedQuestion.text
+        text: room.selectedQuestion.text,
+        isDefault: room.selectedQuestion.isDefault || false
     };
 
     const correct = guessedPlayerId === questionData.authorId;
@@ -898,12 +904,17 @@ io.on("connection", (socket) => {
       console.log(`[Server] ✓ Correct guess! "${guesser?.name}" received +5 points (correct answer)`);
     } else {
       // Question author gets 3 points if answerer guesses wrong (competitive)
-      updatedRoom.scores[questionData.authorId] = (updatedRoom.scores[questionData.authorId] || 0) + 3;
+      // BUT: If the question was a default question, the author does NOT get points
+      if (!questionData.isDefault) {
+        updatedRoom.scores[questionData.authorId] = (updatedRoom.scores[questionData.authorId] || 0) + 3;
+        const author = updatedRoom.players.find(p => p.id === questionData.authorId);
+        console.log(`[Server] ✗ Wrong guess: "${author?.name}" received +3 points (defended question)`);
+      } else {
+        const author = updatedRoom.players.find(p => p.id === questionData.authorId);
+        console.log(`[Server] ✗ Wrong guess: "${author?.name}" did NOT receive points (default question)`);
+      }
       // track snoop attempt
       updatedRoom.snoopCounts[socket.id] = (updatedRoom.snoopCounts[socket.id] || 0) + 1;
-      const author = updatedRoom.players.find(p => p.id === questionData.authorId);
-      const guesser = updatedRoom.players.find(p => p.id === socket.id);
-      console.log(`[Server] ✗ Wrong guess: "${author?.name}" received +3 points (defended question)`);
     }
 
         // Update player scores
@@ -1116,6 +1127,21 @@ function generateRoomCode() {
 }
 
 const PORT = process.env.PORT || 3000;
-httpServer.listen(PORT, () => {
+// Listen on 0.0.0.0 to accept connections from all network interfaces
+// This allows phones and other devices on the local network to connect
+httpServer.listen(PORT, '0.0.0.0', () => {
   console.log(`Server running on port ${PORT}`);
+  console.log(`Server accessible at:`);
+  console.log(`  - http://localhost:${PORT}`);
+  console.log(`  - http://127.0.0.1:${PORT}`);
+  // Try to get the local network IP (this might not work on all systems)
+  const os = require('os');
+  const networkInterfaces = os.networkInterfaces();
+  Object.keys(networkInterfaces).forEach((interfaceName) => {
+    networkInterfaces[interfaceName].forEach((iface) => {
+      if (iface.family === 'IPv4' && !iface.internal) {
+        console.log(`  - http://${iface.address}:${PORT}`);
+      }
+    });
+  });
 });

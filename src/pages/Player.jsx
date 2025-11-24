@@ -1152,19 +1152,7 @@ function Player() {
                   )}
                   {showGuessPrompt && !showPlayerSelection && (
                     <div>
-                      <div className="bg-white rounded-lg p-6" style={{ marginBottom: '16px' }}>
-                        <p 
-                          style={{ 
-                            fontFamily: 'MADE Gentle, sans-serif', 
-                            fontSize: '20px',
-                            color: '#B96759',
-                            margin: 0,
-                            wordWrap: 'break-word'
-                          }}
-                        >
-                          {sanitizeForDisplay(selectedQuestion)}
-                        </p>
-                      </div>
+
                       <p 
                         className="mb-4"
                         style={{ 
@@ -1359,70 +1347,67 @@ function Player() {
   const renderGameOver = () => {
     if (gameState !== 'finished' || !gameEndData) return null;
     
-    const { finalScores, bonuses } = gameEndData;
-    const sortedPlayers = [...players].sort((a, b) => b.score - a.score);
-    const winner = sortedPlayers[0];
+    // Find the current player's score
+    const currentPlayer = players.find(p => p.id === socket.id);
+    const playerScore = currentPlayer?.score || 0;
 
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center px-4 bg-[#D67C6D]">
-        <div className="text-center max-w-4xl w-full">
-          <h1 className="text-6xl mb-8 text-yellow-500 font-bold">Game Over!</h1>
-
-          {/* Winner Section */}
-          <div className="mb-12">
-            <div className="bg-yellow-800 p-8 rounded-lg mb-8">
-              <h2 className="text-3xl mb-2 text-white">Winner</h2>
-              <p className="text-4xl font-bold text-yellow-400">{sanitizeForDisplay(winner?.name || 'N/A')}</p>
-              <p className="text-2xl text-yellow-300">{winner?.score || 0} points</p>
-            </div>
-          </div>
-
-          {/* All Players Scoreboard */}
-          <div className="bg-gray-800 p-8 rounded-lg mb-8">
-            <h2 className="text-3xl mb-6 text-white">Final Scoreboard</h2>
-            <div className="space-y-4 max-w-2xl mx-auto">
-              {sortedPlayers.map((player, index) => (
-                <div 
-                  key={player.id} 
-                  className={`p-6 rounded-lg flex items-center justify-between ${
-                    index === 0 ? 'bg-yellow-800/50' : 'bg-gray-700'
-                  }`}
-                >
-                  <div className="flex items-center">
-                    <span className="text-2xl font-bold mr-4">#{index + 1}</span>
-                    <span className="text-xl text-white">{sanitizeForDisplay(player.name)}</span>
-                  </div>
-                  <span className="text-xl font-bold text-yellow-400">{player.score} points</span>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* Bonuses Breakdown */}
-          {bonuses && bonuses.length > 0 && (
-            <div className="bg-gray-700 p-6 rounded-lg mb-8">
-              <h3 className="text-2xl mb-4 text-white">Bonuses Awarded</h3>
-              <ul className="text-left space-y-2">
-                {bonuses.map((b, i) => {
-                  const bonusPlayer = players.find(p => p.id === b.playerId);
-                  const bonusName = b.type.replace(/_/g, ' ').charAt(0).toUpperCase() + b.type.replace(/_/g, ' ').slice(1);
-                  return (
-                    <li key={i} className="text-lg text-yellow-300">
-                      <strong>{bonusName}</strong>: +{b.amount} pts to <strong>{sanitizeForDisplay(bonusPlayer?.name || 'N/A')}</strong>
-                    </li>
-                  );
-                })}
-              </ul>
-            </div>
-          )}
-
-          {/* Play Again Button */}
-          <button 
-            onClick={() => window.location.reload()}
-            className="mt-8 bg-green-600 px-8 py-4 rounded-lg text-xl font-bold hover:bg-green-700 transition text-white"
+      <div 
+        className="flex justify-center bg-[#D67C6D]"
+        style={{
+          width: '100dvw',
+          height: '100dvh',
+          maxHeight: '100dvh',
+          overflow: 'hidden',
+          padding: '16px',
+          paddingTop: '10vh',
+          boxSizing: 'border-box',
+          alignItems: 'flex-start'
+        }}
+      >
+        <div 
+          className="flex flex-col items-center"
+          style={{
+            width: '85%',
+            justifyContent: 'flex-start',
+            boxSizing: 'border-box'
+          }}
+        >
+          <h2 
+            className="font-bold"
+            style={{ 
+              fontFamily: 'MADE Gentle, sans-serif', 
+              fontSize: '32px',
+              textAlign: 'center',
+              color: '#FFFFFF',
+              margin: 0,
+              marginBottom: '24px',
+              padding: 0
+            }}
           >
-            Play Again
-          </button>
+            Game Over
+          </h2>
+          <div 
+            style={{
+              backgroundColor: 'rgba(255, 255, 255, 0.2)',
+              borderRadius: '12px',
+              padding: '16px',
+              width: '100%',
+              marginTop: '16px'
+            }}
+          >
+            <p 
+              style={{ 
+                fontFamily: 'MADE Gentle, sans-serif', 
+                fontSize: '24px',
+                color: '#FFFFFF',
+                textAlign: 'center',
+                margin: 0
+              }}
+            >
+              Your Score: <span style={{ fontWeight: 'bold' }}>{playerScore}</span>
+            </p>
+          </div>
         </div>
       </div>
     );
@@ -1465,6 +1450,27 @@ function Player() {
       // Continue without stored data
     }
   }, []);
+
+  // Add reload warning when player is in a game
+  useEffect(() => {
+    // Only warn if player has joined and game is active (not finished or closed)
+    const shouldWarn = joined && gameState !== 'finished' && gameState !== 'closed';
+    
+    if (shouldWarn) {
+      const handleBeforeUnload = (e) => {
+        // Modern browsers require returnValue to be set
+        e.preventDefault();
+        e.returnValue = 'Are you sure you want to leave? You will be disconnected from the game.';
+        return e.returnValue;
+      };
+
+      window.addEventListener('beforeunload', handleBeforeUnload);
+
+      return () => {
+        window.removeEventListener('beforeunload', handleBeforeUnload);
+      };
+    }
+  }, [joined, gameState]);
 
   // Render reconnection choice if there's stored data
   if (hasStoredData && !joined && !isReconnecting) {
@@ -1913,27 +1919,29 @@ function Player() {
       {renderGameOver()}
       
       {/* Normal Game Flow */}
-      <div className="p-4 sm:p-6 md:p-8 lg:p-12">
-        {!joined ? (
-          <div className="p-8">
-            <h1 className="text-3xl mb-6">Join Game</h1>
-            {/* ... join form JSX ... */}
-          </div>
-        ) : (
-          <>
-            {showTransitionScreen && !showPlayerSelection ? (
-              renderTransitionScreen()
-            ) : (
-              <>
-                {renderQuestionSubmission()}
-                {renderWaitingForOthers()}
-                {renderVoting()}
-                {renderGuessingPhase()}
-              </>
-            )}
-          </>
-        )}
-      </div>
+      {gameState !== 'finished' && gameState !== 'closed' && (
+        <div className="p-4 sm:p-6 md:p-8 lg:p-12">
+          {!joined ? (
+            <div className="p-8">
+              <h1 className="text-3xl mb-6">Join Game</h1>
+              {/* ... join form JSX ... */}
+            </div>
+          ) : (
+            <>
+              {showTransitionScreen && !showPlayerSelection ? (
+                renderTransitionScreen()
+              ) : (
+                <>
+                  {renderQuestionSubmission()}
+                  {renderWaitingForOthers()}
+                  {renderVoting()}
+                  {renderGuessingPhase()}
+                </>
+              )}
+            </>
+          )}
+        </div>
+      )}
     </div>
   );
 }
