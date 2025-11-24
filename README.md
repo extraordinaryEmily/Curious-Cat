@@ -1,44 +1,17 @@
+# Curious Cat
+This is a party game meant for me to play with friends but also experiment with Socket.IO and AI coding. At the initial stage of development, it was my first time using vibe coding. Excuse the poor commits.
 
+## How to play
+1. Clone the repo and run `npm install` to install the dependencies
+2. Open two terminals, one for the server and one for the frontend
+3. In one terminal, run `cd server` and then `npm run dev` to start the server
+4. After the server is running, in the other terminal, run `npm run dev -- --host` to start the frontend
+5. On your desktop, open the browser and go to the network URL printed in the server terminal
+6. On your phone, open the browser and go to the same network URL. Make sure you are on the same Wi-Fi as the desktop.
+7. Create a room and invite your friends to join
+8. Play the game
 
-## TODO
-- CSS
-- Phone vs desktop; reload warning
-- Duplicate names
-- Host pages are kinda broken
-- When game almost done dev, change min players to 4
-
-## How to run (dev)
-
-1. From the repo root, install frontend deps:
-
-	```powershell
-	npm install
-	```
-
-2. Install server deps:
-
-	```powershell
-	cd server; npm install
-	```
-
-3. Start the backend first (required). The backend listens on port 3000 and provides the Socket.IO API the frontend needs:
-
-	```powershell
-	# Run this in the project root
-	node server/index.js
-	```
-
-	Wait for the server to report "Server running on port 3000" before starting the frontend. The server will also print available connection URLs, including your local network IP (e.g., `http://192.168.1.22:3000`). The server listens on all network interfaces (`0.0.0.0`) to accept connections from devices on your local network.
-
-4. Start the frontend and expose it to your local network so phones can connect. Run this from the repo root:
-
-	```powershell
-	npm run dev -- --host
-	```
-
-	When Vite starts it will print both the local and network URLs, for example:
-
-	- Local: http://localhost:5173/
-	- Network: http://192.168.1.22:5173/
-
-	Use the Network URL from your phone's browser (while on the same Wi‑Fi) to join from mobile devices.
+## OPTIONAL TODOS
+- Add music to the host page
+- I don't see see the submission countdown after a reload. Fix this
+- In the loading screens for both host and player, like after you submit your question, before the game starts, after you vote, while someone is answering, while someone is guessing, etc. lets add a picture of a cat to the loading screens and make it random

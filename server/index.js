@@ -32,7 +32,7 @@ const originalPlayers = new Map();
 
 const MAX_PLAYERS = 8;
 const MAX_NAME_LENGTH = 10;
-const MAX_QUESTION_LENGTH = 150;  // keep at 150 for now
+const MAX_QUESTION_LENGTH = 80;  // keep at 80 for now
 
 // Load default questions for auto-fill and "Give me a question"
 const path = require('path');
@@ -465,7 +465,7 @@ io.on("connection", (socket) => {
   socket.on("submit_question", ({ roomCode, question, targetPlayer, authorId, isDefault }) => {
     // Add length validation
     if (question.length > MAX_QUESTION_LENGTH) {
-      socket.emit("question_error", "Question must be 150 characters or less");
+      socket.emit("question_error", "Question must be 80 characters or less");
       return;
     }
     

@@ -275,19 +275,19 @@ function Host() {
 
                   <button
                     onClick={handleStartGame}
-                    disabled={players.length < 2}
+                    disabled={players.length < 4}
                     className={`
                       start-button
                       w-full px-6 py-3
                       text-xl font-bold
                       rounded-xl
                       transition-all
-                      ${players.length < 2 
+                      ${players.length < 4 
                         ? 'bg-white/20 cursor-not-allowed' 
                         : 'bg-white text-[#B96759] hover:bg-white/90'}
                     `}
                   >
-                    {players.length < 2 ? 'Waiting for Players...' : 'Start Game'}
+                    {players.length < 4 ? 'Waiting for Players...' : 'Start Game'}
                   </button>
                 </div>
               </div>
@@ -303,28 +303,23 @@ function Host() {
     return (
       <div className="host-setup-container">
         <div className="host-setup-box">
-          <h2 className="player-list-title text-center" style={{ fontFamily: 'MADE Gentle, sans-serif' }}>Round {currentRound}</h2>
-          <div className="p-6 rounded-lg mt-4 shadow" style={{ background: '#B96759', fontFamily: 'MADE Gentle, sans-serif' }}>
-            <h3 className="text-2xl mb-4">Players Submitting Questions</h3>
-            <div className="flex flex-col gap-3">
+          <h2 className="player-list-title text-center">Round {currentRound}</h2>
+          <div className="question-phase-container">
+            <h3 className="question-phase-title">Players Submitting Questions</h3>
+            <div>
               {players.map(player => (
                 <div 
                   key={player.id} 
-                  className={`p-3 rounded-lg flex items-center justify-between ${
+                  className={`question-phase-submission-box ${
                     submittedPlayers.has(player.name) 
-                      ? 'bg-green-800' 
-                      : 'bg-gray-700'
+                      ? 'submitted' 
+                      : 'pending'
                   }`}
-                  style={{ fontFamily: 'MADE Gentle, sans-serif' }}
                 >
-                  <span className="text-lg">{sanitizeForDisplay(player.name)}</span>
-                  {submittedPlayers.has(player.name) && (
-                    <span className="text-2xl ml-2">✓</span>
-                  )}
                 </div>
               ))}
             </div>
-            <p className="mt-4 text-lg">
+            <p className="question-phase-count">
               {submittedPlayers.size} of {players.length} players have submitted
             </p>
           </div>
@@ -346,14 +341,14 @@ function Host() {
     return (
       <div className="host-setup-container">
         <div className="host-setup-box">
-          <h2 className="player-list-title text-center" style={{ fontFamily: 'MADE Gentle, sans-serif' }}>Round {currentRound}</h2>
-          <div className="p-6 rounded-lg mt-4 shadow" style={{ background: '#B96759', fontFamily: 'MADE Gentle, sans-serif' }}>
-            <h3 className="text-2xl mb-4">Vote for Your Favorite Question!</h3>
-            <div className="flex flex-col gap-4">
+          <h2 className="player-list-title text-center">Round {currentRound}</h2>
+          <div className="voting-phase-container">
+            <h3 className="voting-phase-title">Vote for Your Favorite Question!</h3>
+            <div className="voting-phase-questions-list">
               {displayedQuestions.map((question) => (
-                <div key={question.id} className="bg-gray-700 p-4 rounded-lg flex items-center" style={{ fontFamily: 'MADE Gentle, sans-serif' }}>
-                  <p className="text-xl mb-0 font-bold">
-                    Question {question.questionNumber || 1}: <span className="text-lg font-normal">{sanitizeForDisplay(question.targetPlayer)}, {sanitizeForDisplay(formatQuestion(question.text))}</span>
+                <div key={question.id} className="voting-phase-question-box">
+                  <p className="voting-phase-question-text">
+                    Question {question.questionNumber || 1}: <span className="voting-phase-question-content">{sanitizeForDisplay(question.targetPlayer)}, {sanitizeForDisplay(formatQuestion(question.text))}</span>
                   </p>
                 </div>
               ))}
@@ -386,43 +381,16 @@ function Host() {
       <div className="host-setup-container">
         <div className="host-setup-box">
           <h2 className="player-list-title text-center">Round {currentRound}</h2>
-          <div className="bg-[#B96759] p-6 rounded-lg mt-4 shadow" style={{ flex: '1', display: 'flex', flexDirection: 'column', minHeight: 0, overflow: 'hidden' }}>
+          <div className="guessing-phase-container">
             {targetPlayer && selectedQuestion && (
-              <div className="text-center" style={{ width: '100%', flex: '1', display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 0, overflow: 'hidden' }}>
-                <p 
-                  className="mb-3"
-                  style={{ 
-                    fontSize: 'clamp(28px, 4vw, 48px)',
-                    fontFamily: 'MADE Gentle, sans-serif',
-                    textAlign: 'center',
-                    color: '#FFFFFF',
-                    lineHeight: '1.2',
-                    wordWrap: 'break-word',
-                    overflowWrap: 'break-word',
-                    maxWidth: '100%',
-                    maxHeight: '100%',
-                    overflow: 'hidden',
-                    display: '-webkit-box',
-                    WebkitLineClamp: 8,
-                    WebkitBoxOrient: 'vertical'
-                  }}
-                >
-                  {sanitizeForDisplay(addQuotations(`${typeof targetPlayer === 'string' ? targetPlayer : targetPlayer.name}, ${formatQuestion(selectedQuestion)}`))}
-                </p>
+              <div className="guessing-phase-question-text">
+                {sanitizeForDisplay(addQuotations(`${typeof targetPlayer === 'string' ? targetPlayer : targetPlayer.name}, ${formatQuestion(selectedQuestion)}`))}
               </div>
             )}
             {guessStatus && (
-              <div className="text-center" style={{ width: '100%', marginTop: '16px', flexShrink: 0 }}>
-                <p 
-                  className="text-xl text-yellow-400 text-center"
-                  style={{
-                    margin: 0,
-                    fontFamily: 'MADE Gentle, sans-serif'
-                  }}
-                >
-                  {guessStatus}
-                </p>
-              </div>
+              <p className="guessing-phase-status">
+                {guessStatus}
+              </p>
             )}
           </div>
         </div>
@@ -439,78 +407,41 @@ function Host() {
     return (
       <div className="host-setup-container">
         <div className="host-setup-box">
-          <h2 className="player-list-title text-center" style={{ fontFamily: 'MADE Gentle, sans-serif' }}>Game Over</h2>
+          <h2 className="player-list-title text-center">Game Over</h2>
           
           {/* Winner Section */}
-          <div className="p-6 rounded-lg mt-4 shadow" style={{ background: '#B96759', fontFamily: 'MADE Gentle, sans-serif' }}>
-            <h3 className="text-2xl mb-4 text-white">Winner</h3>
-            <div className="bg-yellow-800 p-6 rounded-lg mb-4">
-              <p className="text-3xl font-bold text-yellow-400 mb-2">{sanitizeForDisplay(winner?.name || 'N/A')}</p>
-              <p className="text-xl text-yellow-300">{winner?.score || 0} points</p>
+          <div className="game-over-container">
+            <h3 className="game-over-section-title text-center">Winner</h3>
+            <div className="game-over-winner-box">
+              <p className="game-over-winner-name">🏆 {sanitizeForDisplay(winner?.name || 'N/A')} 🏆</p>
+              <p className="game-over-winner-score">{winner?.score || 0} points</p>
             </div>
           </div>
 
           {/* All Players Scoreboard */}
-          <div className="p-6 rounded-lg mt-4 shadow" style={{ background: '#B96759', fontFamily: 'MADE Gentle, sans-serif' }}>
-            <h3 className="text-2xl mb-4 text-white">Final Scoreboard</h3>
-            <div className="flex flex-col gap-3">
+          <div className="game-over-container">
+            <h3 className="game-over-section-title">Final Scoreboard</h3>
+            <div className="game-over-scoreboard-list">
             {sortedPlayers.map((player, index) => (
               <div 
                 key={player.id} 
-                className={`p-4 rounded-lg flex items-center justify-between ${
-                  index === 0 ? 'bg-yellow-800/50' : 'bg-gray-700'
-                }`}
-                style={{ fontFamily: 'MADE Gentle, sans-serif' }}
+                className={`game-over-scoreboard-item ${index === 0 ? 'winner' : 'other'}`}
               >
-                <div className="flex items-center">
-                  <span className="text-xl font-bold mr-2 text-white">
-                    #{index + 1} {sanitizeForDisplay(player.name)}
+                <div>
+                  <span className="game-over-scoreboard-rank">
+                    #{index + 1}
+                  </span>
+                  <span className="game-over-scoreboard-name">
+                    {sanitizeForDisplay(player.name)}
                   </span>
                 </div>
-                <span className="text-lg font-bold text-yellow-400">{player.score} points</span>
+                <span className="game-over-scoreboard-score">{player.score} points</span>
               </div>
             ))}
             </div>
           </div>
 
-          {/* Bonuses Breakdown */}
-          {bonuses && bonuses.length > 0 && (
-            <div className="p-6 rounded-lg mt-4 shadow" style={{ background: '#B96759', fontFamily: 'MADE Gentle, sans-serif' }}>
-              <h3 className="text-2xl mb-4 text-white">Bonuses Awarded</h3>
-              <div className="flex flex-col gap-2">
-                {bonuses.map((b, i) => {
-                  const bonusPlayer = players.find(p => p.id === b.playerId);
-                  const bonusName = b.type.replace(/_/g, ' ').charAt(0).toUpperCase() + b.type.replace(/_/g, ' ').slice(1);
-                  return (
-                    <div key={i} className="bg-gray-700 p-3 rounded-lg">
-                      <p className="text-lg text-yellow-300">
-                        <strong>{bonusName}</strong>: +{b.amount} pts to <strong>{sanitizeForDisplay(bonusPlayer?.name || 'N/A')}</strong>
-                      </p>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          )}
 
-          {/* Play Again Button */}
-          {/* Play Again Button */}
-          <div className="mt-6">
-            <button 
-              onClick={() => window.location.reload()}
-              className={`
-                start-button
-                w-full px-6 py-3
-                text-xl font-bold
-                rounded-xl
-                transition-all
-                bg-white text-[#B96759] hover:bg-white/90
-              `}
-              style={{ fontFamily: 'MADE Gentle, sans-serif' }}
-            >
-              Play Again
-            </button>
-          </div>
         </div>
       </div>
     );
@@ -522,7 +453,7 @@ function Host() {
     }
   }, [showGameSetup]);
 
-  // Add reload warning when game is active
+  // Add reload warning when game is active (including back button)
   useEffect(() => {
     // Only warn if there's an active room or game in progress
     const shouldWarn = roomCode && (gameState === 'playing' || gameState === 'waiting');
@@ -535,10 +466,23 @@ function Host() {
         return e.returnValue;
       };
 
+      const handlePopState = (e) => {
+        // Warn when user tries to go back
+        const message = 'Are you sure you want to leave? You will be disconnected from the game.';
+        if (!window.confirm(message)) {
+          // Push state back if user cancels
+          window.history.pushState(null, '', window.location.href);
+        }
+      };
+
       window.addEventListener('beforeunload', handleBeforeUnload);
+      // Push a state to detect back button
+      window.history.pushState(null, '', window.location.href);
+      window.addEventListener('popstate', handlePopState);
 
       return () => {
         window.removeEventListener('beforeunload', handleBeforeUnload);
+        window.removeEventListener('popstate', handlePopState);
       };
     }
   }, [roomCode, gameState]);

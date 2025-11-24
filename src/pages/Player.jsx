@@ -135,7 +135,7 @@ function Player() {
         // happen when the answerer explicitly chooses to skip or submits a guess.
         timeoutRef.current = setTimeout(() => {
           setShowGuessPrompt(true);
-        }, 7000);
+        }, 8000);
       }
     });
 
@@ -383,8 +383,8 @@ function Player() {
       setError('Please enter your name');
       return;
     }
-    if (trimmedPlayerName.length > 15) {
-      setError('Name must be 15 characters or less');
+    if (trimmedPlayerName.length > 10) {
+      setError('Name must be 10 characters or less');
       return;
     }
     // Check if name contains numbers
@@ -418,8 +418,8 @@ function Player() {
       setError('Please fill in both the question and select a target player');
       return;
     }
-    if (question.length > 150) {
-      setError('Question must be 150 characters or less');
+    if (question.length > 80) {
+      setError('Question must be 80 characters or less');
       return;
     }
 
@@ -516,7 +516,7 @@ function Player() {
                 value={question}
                 onChange={(e) => setQuestion(e.target.value)}
                 placeholder=""
-                maxLength={150}
+                maxLength={80}
                 className="bg-white text-[#B96759] focus:outline-none focus:ring-2 focus:ring-white transition-all resize-none"
                 readOnly={isDefaultQuestion}
                 style={{
@@ -537,7 +537,7 @@ function Player() {
                   overflowWrap: 'break-word'
                 }}
               />
-              <span className="block text-right text-xs mt-1" style={{ color: '#FFFFFF', fontFamily: 'MADE Gentle, sans-serif' }}>{question.length}/150</span>
+              <span className="block text-right text-xs mt-1" style={{ color: '#FFFFFF', fontFamily: 'MADE Gentle, sans-serif' }}>{question.length}/80</span>
             </div>
 
             <div style={{ display: 'flex', gap: '8px', marginBottom: '12px' }}>
@@ -1093,19 +1093,6 @@ function Player() {
                     </>
                   ) : (
                     <>
-                      <div className="bg-white rounded-lg p-6" style={{ marginBottom: '16px' }}>
-                        <p 
-                          style={{ 
-                            fontFamily: 'MADE Gentle, sans-serif', 
-                            fontSize: '20px',
-                            color: '#B96759',
-                            margin: 0,
-                            wordWrap: 'break-word'
-                          }}
-                        >
-                          {sanitizeForDisplay(selectedQuestion)}
-                        </p>
-                      </div>
                       <p 
                         className="mb-4"
                         style={{ 
@@ -1451,7 +1438,7 @@ function Player() {
     }
   }, []);
 
-  // Add reload warning when player is in a game
+  // Add reload warning when player is in a game (including back button)
   useEffect(() => {
     // Only warn if player has joined and game is active (not finished or closed)
     const shouldWarn = joined && gameState !== 'finished' && gameState !== 'closed';
@@ -1464,10 +1451,23 @@ function Player() {
         return e.returnValue;
       };
 
+      const handlePopState = (e) => {
+        // Warn when user tries to go back
+        const message = 'Are you sure you want to leave? You will be disconnected from the game.';
+        if (!window.confirm(message)) {
+          // Push state back if user cancels
+          window.history.pushState(null, '', window.location.href);
+        }
+      };
+
       window.addEventListener('beforeunload', handleBeforeUnload);
+      // Push a state to detect back button
+      window.history.pushState(null, '', window.location.href);
+      window.addEventListener('popstate', handlePopState);
 
       return () => {
         window.removeEventListener('beforeunload', handleBeforeUnload);
+        window.removeEventListener('popstate', handlePopState);
       };
     }
   }, [joined, gameState]);
@@ -1663,7 +1663,7 @@ function Player() {
               value={playerName}
               onChange={(e) => setPlayerName(e.target.value)}
               placeholder=""
-              maxLength={15}
+              maxLength={10}
               className="bg-white text-[#B96759] focus:outline-none focus:ring-2 focus:ring-white transition-all"
               style={{
                 width: '100%',
@@ -1722,9 +1722,28 @@ function Player() {
 
           {/* Error Message */}
           {error && (
-            <p className="text-white text-center text-sm rounded-full px-4 py-2 mt-4" style={{ color: '#FFFFFF' }}>
-              {error}
-            </p>
+            <div 
+              className="mt-4"
+              style={{
+                backgroundColor: 'rgba(255, 0, 0, 0.2)',
+                borderRadius: '12px',
+                padding: '12px 16px',
+                border: '2px solid rgba(255, 255, 255, 0.3)'
+              }}
+            >
+              <p 
+                className="text-center"
+                style={{ 
+                  color: '#FFFFFF',
+                  fontFamily: 'MADE Gentle, sans-serif',
+                  fontSize: '18px',
+                  margin: 0,
+                  fontWeight: 'bold'
+                }}
+              >
+                {error}
+              </p>
+            </div>
           )}
 
           {/* Join Button */}

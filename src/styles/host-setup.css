@@ -330,3 +330,224 @@ input[type="range"]::-moz-range-track {
   }
 }
 
+/* Question Phase Styles */
+.question-phase-container {
+  padding: 1.5rem;
+  border-radius: 0.75rem;
+  font-family: 'MADE Gentle', sans-serif;
+}
+
+.question-phase-title {
+  font-size: clamp(1.5rem, 3vw, 2rem);
+  margin-bottom: 1rem;
+  color: white;
+  font-family: 'MADE Gentle', sans-serif;
+}
+
+.question-phase-submission-box {
+  padding: 0.75rem;
+  border-radius: 0.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 0.75rem;
+}
+
+.question-phase-submission-box.submitted {
+  background-color: #8A9F6B;
+}
+
+.question-phase-submission-box.pending {
+  background-color: #544E4C;
+}
+
+.question-phase-count {
+  margin-top: 1rem;
+  font-size: clamp(1.25rem, 2.5vw, 1.5rem);
+  color: white;
+  text-align: center;
+  font-family: 'MADE Gentle', sans-serif;
+}
+
+/* Voting Phase Styles */
+.voting-phase-container {
+  padding: 1.5rem;
+  border-radius: 0.75rem;
+  font-family: 'MADE Gentle', sans-serif;
+}
+
+.voting-phase-title {
+  font-size: clamp(0.875rem, 2vw, 1.25rem);
+  margin-bottom: 1rem;
+  color: white;
+  font-family: 'MADE Gentle', sans-serif;
+}
+
+.voting-phase-questions-list {
+  display: flex;
+  flex-direction: column;
+}
+
+.voting-phase-question-box {
+  padding: 0.3rem;
+  display: flex;
+  align-items: center;
+  font-family: 'MADE Gentle', sans-serif;
+}
+
+.voting-phase-question-text {
+  margin: 0;
+  font-size: clamp(0.875rem, 2vw, 1.25rem);
+  font-weight: bold;
+  color: white;
+  line-height: 1.2;
+}
+
+.voting-phase-question-content {
+  font-weight: normal;
+}
+
+/* Guessing Phase Styles */
+.guessing-phase-container {
+  padding: 1.5rem;
+  border-radius: 0.75rem;
+  margin-top: 1rem;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.guessing-phase-question-text {
+  width: 100%;
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 0;
+  overflow: hidden;
+  text-align: center;
+  font-size: clamp(1.75rem, 4vw, 3rem);
+  font-family: 'MADE Gentle', sans-serif;
+  color: #FFFFFF;
+  line-height: 1.2;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+  max-width: 100%;
+  max-height: 100%;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 8;
+  -webkit-box-orient: vertical;
+}
+
+.guessing-phase-status {
+  width: 100%;
+  margin-top: 1rem;
+  flex-shrink: 0;
+  text-align: center;
+  font-size: clamp(1.25rem, 2.5vw, 1.5rem);
+  color: #F2D089;
+  margin: 0;
+  font-family: 'MADE Gentle', sans-serif;
+}
+
+/* Game Over Styles */
+.game-over-container {
+  border-radius: 0.75rem;
+  font-family: 'MADE Gentle', sans-serif;
+}
+
+.game-over-section-title {
+  font-size: clamp(1rem, 1.5vw, 1.25rem);
+  margin-bottom: 0.5rem;
+  color: white;
+  font-family: 'MADE Gentle', sans-serif;
+}
+
+.game-over-winner-box {
+  background-color: #d67c6d;
+  padding: 0.75rem;
+  border-radius: 0.5rem;
+  margin-bottom: 0.5rem;
+}
+
+.game-over-winner-name {
+  font-size: clamp(1.5rem, 3vw, 2rem);
+  font-weight: bold;
+  color: white;
+  margin-bottom: 0.25rem;
+  text-align: center;
+  font-family: 'MADE Gentle', sans-serif;
+  line-height: 1.2;
+}
+
+.game-over-winner-score {
+  font-size: clamp(0.875rem, 1.5vw, 1rem);
+  color: white;
+  text-align: center;
+  font-family: 'MADE Gentle', sans-serif;
+}
+
+.game-over-scoreboard-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.game-over-scoreboard-item {
+  padding: 0.3rem;
+  padding-left: 0.5rem;
+  padding-right: 0.5rem;
+
+  border-radius: 0.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-family: 'MADE Gentle', sans-serif;
+}
+
+.game-over-scoreboard-item.winner {
+  background-color: #d67c6d;
+}
+
+.game-over-scoreboard-item.other {
+  background-color: #544E4C;
+}
+
+.game-over-scoreboard-rank {
+  font-size: clamp(0.75rem, 1.5vw, 1rem);
+  font-weight: bold;
+  margin-right: 0.5rem;
+  color: white;
+}
+
+.game-over-scoreboard-name {
+  font-size: clamp(0.75rem, 1.5vw, 1rem);
+  color: white;
+}
+
+.game-over-scoreboard-score {
+  font-size: clamp(0.75rem, 1.5vw, 1rem);
+  font-weight: bold;
+  color: white;
+}
+
+.game-over-bonus-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+}
+
+.game-over-bonus-item {
+  background-color: #374151;
+  padding: 0.25rem;
+  border-radius: 0.5rem;
+}
+
+.game-over-bonus-text {
+  font-size: clamp(0.75rem, 1.5vw, 1rem);
+  color: #fde047;
+  font-family: 'MADE Gentle', sans-serif;
+}
